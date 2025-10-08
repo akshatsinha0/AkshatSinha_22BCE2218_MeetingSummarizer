@@ -1,6 +1,12 @@
 import os
 import tempfile
 import subprocess
+import uuid
+import json
+import threading
+import sqlite3
+import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
 from fastapi import FastAPI, File, UploadFile, HTTPException
@@ -26,6 +32,13 @@ TRANSCRIBE_PROVIDER=os.getenv("TRANSCRIBE_PROVIDER","local") # local|azure|deepg
 DAILY_ASR_BUDGET_MIN=int(os.getenv("DAILY_ASR_BUDGET_MIN","0"))
 CLOUD_FALLBACK=os.getenv("CLOUD_FALLBACK","never") # never|on_error|on_low_confidence
 CONF_THRESHOLD=float(os.getenv("CONF_THRESHOLD","0.4"))
+STORAGE_DIR=os.getenv("STORAGE_DIR",os.path.join(os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir, os.pardir)),"storage"))
+DB_PATH=os.path.join(STORAGE_DIR,"app.db")
+
+os.makedirs(STORAGE_DIR,exist_ok=True)
+os.makedirs(os.path.join(STORAGE_DIR,"audio"),exist_ok=True)
+os.makedirs(os.path.join(STORAGE_DIR,"transcripts"),exist_ok=True)
+os.makedirs(os.path.join(STORAGE_DIR,"summaries"),exist_ok=True)
 
 app=FastAPI(title="Meeting Summarizer API")
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
@@ -35,6 +48,40 @@ class SummaryOut(BaseModel):
     summary:str
     decisions:List[str]
     action_items:List[str]
+
+class JobOut(BaseModel):
+    job_id:str
+    status:str
+    created_at:str
+    updated_at:str
+    transcript_path:Optional[str]=None
+    summary_path:Optional[str]=None
+    error:Optional[str]=None
+
+# ---- DB & Queue ----
+_conn=sqlite3.connect(DB_PATH,check_same_thread=False)
+_conn.execute("""
+CREATE TABLE IF NOT EXISTS jobs (
+  id TEXT PRIMARY KEY,
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  input_path TEXT,
+  transcript_path TEXT,
+  summary_path TEXT,
+  error TEXT
+)
+""")
+_conn.execute("""
+CREATE TABLE IF NOT EXISTS usage_budget (
+  day TEXT PRIMARY KEY,
+  minutes_used REAL NOT NULL
+)
+""")
+_conn.commit()
+_db_lock=threading.Lock()
+
+_executor=ThreadPoolExecutor(max_workers=2)
 
 # ---- Utilities ----
 
@@ -51,8 +98,37 @@ def _ensure_wav(input_path:str)->str:
         raise HTTPException(status_code=500,detail=f"ffmpeg failed: {e}")
     return wav_path
 
-# ASR using faster-whisper
+# Helpers for budget tracking
 
+def _get_audio_duration(path:str)->float:
+    try:
+        r=subprocess.run([FFMPEG_BIN.replace('ffmpeg','ffprobe'),"-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1",path],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,text=True)
+        return float(r.stdout.strip())
+    except Exception:
+        return 0.0
+
+def _budget_allow(duration_sec:float)->bool:
+    if DAILY_ASR_BUDGET_MIN<=0:
+        return False
+    today=dt.date.today().isoformat()
+    with _db_lock:
+        cur=_conn.execute("SELECT minutes_used FROM usage_budget WHERE day=?",(today,))
+        row=cur.fetchone()
+        used=row[0] if row else 0.0
+        allow=(used+duration_sec/60.0)<=DAILY_ASR_BUDGET_MIN
+        return allow
+
+def _budget_add(duration_sec:float)->None:
+    today=dt.date.today().isoformat()
+    with _db_lock:
+        cur=_conn.execute("SELECT minutes_used FROM usage_budget WHERE day=?",(today,))
+        row=cur.fetchone()
+        used=row[0] if row else 0.0
+        used+=duration_sec/60.0
+        _conn.execute("REPLACE INTO usage_budget(day,minutes_used) VALUES(?,?)",(today,used))
+        _conn.commit()
+
+# ASR using faster-whisper (local)
 def _transcribe(path:str):
     from faster_whisper import WhisperModel
     model=WhisperModel(WHISPER_MODEL,device="cpu")
@@ -63,6 +139,45 @@ def _transcribe(path:str):
         out_segments.append({"start":float(seg.start or 0),"end":float(seg.end or 0),"text":seg.text})
         parts.append(seg.text)
     return " ".join(parts).strip(),out_segments
+
+# Cloud ASR (optional)
+
+def _transcribe_cloud(path:str):
+    provider=TRANSCRIBE_PROVIDER.lower()
+    duration=_get_audio_duration(path)
+    if provider=="local":
+        return None
+    if not _budget_allow(duration):
+        return None
+    try:
+        import requests
+        audio=open(path,'rb').read()
+        if provider=="azure":
+            key=os.getenv("AZURE_SPEECH_KEY"); region=os.getenv("AZURE_SPEECH_REGION")
+            if not key or not region:
+                return None
+            url=f"https://{region}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=en-US"
+            headers={"Ocp-Apim-Subscription-Key":key,"Content-Type":"audio/wav"}
+            r=requests.post(url,data=audio,headers=headers,timeout=600)
+            r.raise_for_status()
+            _budget_add(duration)
+            data=r.json(); text=data.get("DisplayText") or data.get("Text") or ""
+            return text
+        elif provider=="deepgram":
+            dg=os.getenv("DEEPGRAM_API_KEY");
+            if not dg:
+                return None
+            url="https://api.deepgram.com/v1/listen?model=nova-2-meeting&diarize=true&smart_format=true"
+            headers={"Authorization":f"Token {dg}","Content-Type":"audio/wav"}
+            r=requests.post(url,data=audio,headers=headers,timeout=600)
+            r.raise_for_status()
+            _budget_add(duration)
+            data=r.json();
+            text=" ".join(alt.get('transcript','') for alt in data.get('results',{}).get('channels',[{}])[0].get('alternatives',[]))
+            return text
+    except Exception:
+        return None
+    return None
 
 # Summarization via Ollama HTTP API
 
@@ -156,7 +271,13 @@ async def process_meeting(file:UploadFile=File(...)):
         content=await file.read()
         tmp.write(content)
     wav_path=_ensure_wav(raw_path)
-    transcript,segments=_transcribe(wav_path)
+    # try cloud only if allowed
+    cloud_text=_transcribe_cloud(wav_path)
+    if cloud_text:
+        transcript=cloud_text
+        segments=[{"start":0.0,"end":0.0,"text":cloud_text}]
+    else:
+        transcript,segments=_transcribe(wav_path)
     diar=_diarize(wav_path)
     labeled=_assign_speakers(segments,diar)
     labeled_text=[]
@@ -165,3 +286,73 @@ async def process_meeting(file:UploadFile=File(...)):
         else: labeled_text.append(txt)
     final_transcript="\n".join(labeled_text) if labeled_text else transcript
     return _summarize(final_transcript)
+
+# ---- Async Jobs API ----
+
+def _db_upsert_job(job_id:str, **kwargs):
+    now=dt.datetime.utcnow().isoformat()
+    with _db_lock:
+        cur=_conn.execute("SELECT id FROM jobs WHERE id=?",(job_id,))
+        exists=cur.fetchone() is not None
+        if exists:
+            sets=", ".join([f"{k}=?" for k in kwargs.keys()])
+            vals=list(kwargs.values())
+            vals.append(job_id)
+            _conn.execute(f"UPDATE jobs SET {sets}, updated_at=? WHERE id=?",(*kwargs.values(),now,job_id))
+        else:
+            _conn.execute("INSERT INTO jobs(id,status,created_at,updated_at) VALUES(?,?,?,?)",(job_id,kwargs.get('status','queued'),now,now))
+        _conn.commit()
+
+def _job_row_to_out(row)->JobOut:
+    return JobOut(job_id=row[0],status=row[1],created_at=row[2],updated_at=row[3],transcript_path=row[5],summary_path=row[6],error=row[7])
+
+def _process_job(job_id:str, file_path:str):
+    try:
+        _db_upsert_job(job_id,status='processing',input_path=file_path)
+        wav_path=_ensure_wav(file_path)
+        cloud_text=_transcribe_cloud(wav_path)
+        if cloud_text:
+            transcript=cloud_text
+            segments=[{"start":0.0,"end":0.0,"text":cloud_text}]
+        else:
+            transcript,segments=_transcribe(wav_path)
+        diar=_diarize(wav_path)
+        labeled=_assign_speakers(segments,diar)
+        labeled_text=[(f"{spk}: {txt}" if spk else txt) for spk,txt in labeled]
+        final_transcript="\n".join(labeled_text) if labeled_text else transcript
+        summary=_summarize(final_transcript)
+        # persist
+        tpath=os.path.join(STORAGE_DIR,"transcripts",f"{job_id}.txt")
+        spath=os.path.join(STORAGE_DIR,"summaries",f"{job_id}.json")
+        open(tpath,'w',encoding='utf-8').write(final_transcript)
+        open(spath,'w',encoding='utf-8').write(summary.model_dump_json(indent=2))
+        _db_upsert_job(job_id,status='done',transcript_path=tpath,summary_path=spath)
+    except Exception as e:
+        _db_upsert_job(job_id,status='error',error=str(e))
+
+@app.post("/api/jobs",response_model=JobOut)
+async def create_job(file:UploadFile=File(...)):
+    job_id=str(uuid.uuid4())
+    suffix=os.path.splitext(file.filename or "audio")[1] or ".wav"
+    audio_path=os.path.join(STORAGE_DIR,"audio",f"{job_id}{suffix}")
+    with open(audio_path,'wb') as f:
+        f.write(await file.read())
+    _db_upsert_job(job_id,status='queued',input_path=audio_path)
+    _executor.submit(_process_job,job_id,audio_path)
+    with _db_lock:
+        row=_conn.execute("SELECT * FROM jobs WHERE id=?",(job_id,)).fetchone()
+    return _job_row_to_out(row)
+
+@app.get("/api/jobs/{job_id}",response_model=JobOut)
+async def get_job(job_id:str):
+    with _db_lock:
+        row=_conn.execute("SELECT * FROM jobs WHERE id=?",(job_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404,detail="job not found")
+    return _job_row_to_out(row)
+
+@app.get("/api/jobs",response_model=List[JobOut])
+async def list_jobs(limit:int=20):
+    with _db_lock:
+        rows=_conn.execute("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",(limit,)).fetchall()
+    return [_job_row_to_out(r) for r in rows]
