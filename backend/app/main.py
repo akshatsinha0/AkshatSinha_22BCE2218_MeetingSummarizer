@@ -6,6 +6,15 @@ from typing import List, Optional
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from dotenv import load_dotenv
+
+# Load .env from project root if present
+try:
+    here=os.path.abspath(os.path.dirname(__file__))
+    root=os.path.abspath(os.path.join(here, os.pardir, os.pardir))
+    load_dotenv(os.path.join(root, ".env"))
+except Exception:
+    pass
 
 # ---- Config ----
 OLLAMA_BASE_URL=os.getenv("OLLAMA_BASE_URL","http://127.0.0.1:11434")
@@ -137,7 +146,7 @@ def _assign_speakers(asr_segments,diar_segments):
 
 @app.get("/health")
 def health():
-    return {"status":"ok"}
+    return {"status":"ok","diarization":"enabled" if HF_TOKEN else "disabled","model":OLLAMA_MODEL}
 
 @app.post("/api/process",response_model=SummaryOut)
 async def process_meeting(file:UploadFile=File(...)):
