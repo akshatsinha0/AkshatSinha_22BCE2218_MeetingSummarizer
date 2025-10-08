@@ -13,6 +13,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from fastapi.staticfiles import StaticFiles
 
 # Load .env from project root if present
 try:
@@ -41,6 +42,7 @@ os.makedirs(os.path.join(STORAGE_DIR,"transcripts"),exist_ok=True)
 os.makedirs(os.path.join(STORAGE_DIR,"summaries"),exist_ok=True)
 
 app=FastAPI(title="Meeting Summarizer API")
+app.mount("/storage", StaticFiles(directory=STORAGE_DIR), name="storage")
 app.add_middleware(CORSMiddleware,allow_origins=["*"],allow_credentials=True,allow_methods=["*"],allow_headers=["*"])
 
 class SummaryOut(BaseModel):
@@ -322,11 +324,13 @@ def _process_job(job_id:str, file_path:str):
         final_transcript="\n".join(labeled_text) if labeled_text else transcript
         summary=_summarize(final_transcript)
         # persist
-        tpath=os.path.join(STORAGE_DIR,"transcripts",f"{job_id}.txt")
-        spath=os.path.join(STORAGE_DIR,"summaries",f"{job_id}.json")
-        open(tpath,'w',encoding='utf-8').write(final_transcript)
-        open(spath,'w',encoding='utf-8').write(summary.model_dump_json(indent=2))
-        _db_upsert_job(job_id,status='done',transcript_path=tpath,summary_path=spath)
+        tfile=os.path.join(STORAGE_DIR,"transcripts",f"{job_id}.txt")
+        sfile=os.path.join(STORAGE_DIR,"summaries",f"{job_id}.json")
+        open(tfile,'w',encoding='utf-8').write(final_transcript)
+        open(sfile,'w',encoding='utf-8').write(summary.model_dump_json(indent=2))
+        turl=f"/storage/transcripts/{job_id}.txt"
+        surl=f"/storage/summaries/{job_id}.json"
+        _db_upsert_job(job_id,status='done',transcript_path=turl,summary_path=surl)
     except Exception as e:
         _db_upsert_job(job_id,status='error',error=str(e))
 
