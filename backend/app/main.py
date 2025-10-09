@@ -220,13 +220,18 @@ def _summarize(transcript:str)->SummaryOut:
 
 def _diarize(path:str):
     if not HF_TOKEN:
+        print("⚠️  HF_TOKEN not set - skipping diarization")
         return []
     try:
         from pyannote.audio import Pipeline
-        pipeline=Pipeline.from_pretrained("pyannote/speaker-diarization-3.1",use_auth_token=HF_TOKEN)
+        print(f"<---->Loading diarization pipeline...")
+        pipeline=Pipeline.from_pretrained("pyannote/speaker-diarization-3.1",token=HF_TOKEN)
+        print(f"<---->Running diarization on {path}...")
         annotation=pipeline(path)
+        print(f"<---->Diarization complete")
     except Exception as e:
         # Fail soft if token missing or model access not granted
+        print(f"<---->Diarization failed: {type(e).__name__}: {e}")
         return []
     diar_segments=[]
     speakers_map={}
@@ -273,7 +278,7 @@ async def process_meeting(file:UploadFile=File(...)):
         content=await file.read()
         tmp.write(content)
     wav_path=_ensure_wav(raw_path)
-    # try cloud only if allowed
+    # try cloud only if allowed (partial cloud)
     cloud_text=_transcribe_cloud(wav_path)
     if cloud_text:
         transcript=cloud_text
