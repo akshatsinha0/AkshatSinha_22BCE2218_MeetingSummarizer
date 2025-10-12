@@ -226,34 +226,50 @@ def _transcribe_cloud(path:str):
 def _summarize(transcript:str,*,model:Optional[str]=None,prompt_override:Optional[str]=None)->SummaryOut:
     import json,requests
     prompt=(prompt_override or (
-        "You are a meeting summarizer. Given the transcript, return a terse summary, a bullet list of key decisions, and actionable next steps.\n"
-        "Return strict JSON with keys: summary, decisions (array), action_items (array).\n"
-    ))+f"\nTranscript:\n{transcript}\n"
-    payload={"model":(model or OLLAMA_MODEL),"prompt":prompt,"stream":False}
+        "You are a meeting summarizer. Analyze the transcript and provide:\n"
+        "1. A concise summary of the meeting\n"
+        "2. Key decisions made (if any)\n"
+        "3. Action items with owners (if any)\n\n"
+        "Return ONLY valid JSON in this exact format:\n"
+        '{"summary": "text here", "decisions": ["decision 1", "decision 2"], "action_items": ["action 1", "action 2"]}\n\n'
+    ))+f"Transcript:\n{transcript}\n\nJSON:"
+    payload={"model":(model or OLLAMA_MODEL),"prompt":prompt,"stream":False,"format":"json"}
     try:
         r=requests.post(f"{OLLAMA_BASE_URL}/api/generate",json=payload,timeout=600)
         r.raise_for_status()
     except Exception as e:
         raise HTTPException(status_code=500,detail=f"Ollama request failed: {e}")
     data=r.json()
-    # data["response"] should contain JSON or text; try to parse JSON block
     txt=data.get("response","{}")
-    # try parse
     parsed=None
     try:
         parsed=json.loads(txt)
     except Exception:
-        # naive extraction of JSON braces
         import re
         m=re.search(r"\{[\s\S]*\}",txt)
         if m:
             try:
                 parsed=json.loads(m.group(0))
             except Exception:
-                parsed=None
+                pass
     if not isinstance(parsed,dict):
         parsed={"summary":txt[:800],"decisions":[],"action_items":[]}
-    return SummaryOut(transcript=transcript,summary=str(parsed.get("summary","")),decisions=list(parsed.get("decisions",[])),action_items=list(parsed.get("action_items",[])))
+    
+    summary_text=str(parsed.get("summary",""))
+    decisions_list=parsed.get("decisions",[])
+    action_items_list=parsed.get("action_items",[])
+    
+    if not isinstance(decisions_list,list):
+        decisions_list=[]
+    if not isinstance(action_items_list,list):
+        action_items_list=[]
+    
+    return SummaryOut(
+        transcript=transcript,
+        summary=summary_text,
+        decisions=[str(d) for d in decisions_list],
+        action_items=[str(a) for a in action_items_list]
+    )
 
 # Diarization via pyannote
 
@@ -449,7 +465,7 @@ def _job_row_to_out(row)->JobOut:
         progress=row['progress'],
         stage=row['stage'],
         error=row['error'],
-        filename=row.get('filename')
+        filename=row['filename'] if 'filename' in row.keys() else None
     )
 
 def _process_job(job_id:str, file_path:str, *, model_override:Optional[str]=None, language:Optional[str]=None, diarization_enabled:bool=True, prompt_override:Optional[str]=None):

@@ -41,8 +41,8 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
     return ()=> clearInterval(t);
   },[id]);
 
-  async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${id}/export/pdf`).then(r=>r.json()).then(j=>window.open(j.pdf,'_blank')); }
-  async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${id}/export/docx`).then(r=>r.json()).then(j=>window.open(j.docx,'_blank')); }
+  async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${id}/export/pdf`).then(r=>r.json()).then(j=>window.open(`${apiBase}${j.pdf}`,'_blank')); }
+  async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${id}/export/docx`).then(r=>r.json()).then(j=>window.open(`${apiBase}${j.docx}`,'_blank')); }
 
   const speakers=Array.from(new Set(segments.map(s=>s[0]).filter(Boolean)));
   const filtered = segments.filter(s=>!filter || (s[1]||'').toLowerCase().includes(filter.toLowerCase()));
@@ -73,21 +73,29 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
           <div style={{display:'flex',gap:'12px',marginTop:'8px'}}>
             <button onClick={exportPdf} style={{border:'1px solid #333',padding:'8px'}}>Export PDF</button>
             <button onClick={exportDocx} style={{border:'1px solid #333',padding:'8px'}}>Export DOCX</button>
-            {data?.summary_path && <a href={data.summary_path} style={{border:'1px solid #333',padding:'8px'}}>Download JSON</a>}
-            {data?.transcript_path && <a href={data.transcript_path} style={{border:'1px solid #333',padding:'8px'}}>Download TXT</a>}
+            {data?.summary_path && <a href={`${apiBase}${data.summary_path}`} download style={{border:'1px solid #333',padding:'8px',textDecoration:'none',color:'inherit'}}>Download JSON</a>}
+            {data?.transcript_path && <a href={`${apiBase}${data.transcript_path}`} download style={{border:'1px solid #333',padding:'8px',textDecoration:'none',color:'inherit'}}>Download TXT</a>}
           </div>
           <div style={{display:'flex',gap:'24px',marginTop:'12px'}}>
             <div style={{flex:1}}>
               <h3 className="merriweather-500" style={{fontSize:'16px'}}>Decisions</h3>
-              <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
-                {(summary.decisions||[]).map((d:string,i:number)=>(<li key={i}>{d}</li>))}
-              </ul>
+              {(summary.decisions||[]).length > 0 ? (
+                <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
+                  {summary.decisions.map((d:string,i:number)=>(<li key={i}>{d}</li>))}
+                </ul>
+              ) : (
+                <p className="merriweather-500" style={{color:'#666',fontStyle:'italic'}}>No decisions identified</p>
+              )}
             </div>
             <div style={{flex:1}}>
               <h3 className="merriweather-500" style={{fontSize:'16px'}}>Action Items</h3>
-              <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
-                {(summary.action_items||[]).map((a:string,i:number)=>(<li key={i}>{a}</li>))}
-              </ul>
+              {(summary.action_items||[]).length > 0 ? (
+                <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
+                  {summary.action_items.map((a:string,i:number)=>(<li key={i}>{a}</li>))}
+                </ul>
+              ) : (
+                <p className="merriweather-500" style={{color:'#666',fontStyle:'italic'}}>No action items identified</p>
+              )}
             </div>
           </div>
         </section>
