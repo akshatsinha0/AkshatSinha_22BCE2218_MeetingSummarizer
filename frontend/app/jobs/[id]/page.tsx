@@ -71,15 +71,20 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
     },20);
   }
 
-  function revealAll(){
-    const newRevealed=new Set<number>();
-    const newText:Record<number,string>={};
-    filtered.forEach((s,i)=>{
-      newRevealed.add(i);
-      newText[i]=s[1]||'';
-    });
-    setRevealedLines(newRevealed);
-    setTypewriterText(newText);
+  function toggleRevealAll(){
+    if(revealedLines.size === filtered.length){
+      setRevealedLines(new Set());
+      setTypewriterText({});
+    }else{
+      const newRevealed=new Set<number>();
+      const newText:Record<number,string>={};
+      filtered.forEach((s,i)=>{
+        newRevealed.add(i);
+        newText[i]=s[1]||'';
+      });
+      setRevealedLines(newRevealed);
+      setTypewriterText(newText);
+    }
   }
 
   return (
@@ -169,14 +174,25 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
             <input placeholder="Search..." value={filter} onChange={e=>setFilter(e.target.value)} />
           </div>
           <button 
-            onClick={revealAll}
+            onClick={toggleRevealAll}
             style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}}
-            title="Reveal all lines"
+            title={revealedLines.size === filtered.length ? "Hide all lines" : "Reveal all lines"}
           >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M1 8h14M8 1v14"/>
-            </svg>
-            Show All
+            {revealedLines.size === filtered.length ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 8h14"/>
+                </svg>
+                Hide All
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M1 8h14M8 1v14"/>
+                </svg>
+                Show All
+              </>
+            )}
           </button>
         </div>
         {speakers.length>0 && (
