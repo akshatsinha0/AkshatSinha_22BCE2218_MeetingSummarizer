@@ -73,8 +73,8 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
           <div style={{display:'flex',gap:'12px',marginTop:'8px'}}>
             <button onClick={exportPdf} style={{border:'1px solid #333',padding:'8px'}}>Export PDF</button>
             <button onClick={exportDocx} style={{border:'1px solid #333',padding:'8px'}}>Export DOCX</button>
-            {data?.summary_path && <a href={`${apiBase}${data.summary_path}`} download style={{border:'1px solid #333',padding:'8px',textDecoration:'none',color:'inherit'}}>Download JSON</a>}
-            {data?.transcript_path && <a href={`${apiBase}${data.transcript_path}`} download style={{border:'1px solid #333',padding:'8px',textDecoration:'none',color:'inherit'}}>Download TXT</a>}
+            {data?.summary_path && <a href={`${apiBase}${data.summary_path}`} target="_blank" rel="noopener noreferrer" style={{border:'1px solid #333',padding:'8px',textDecoration:'none',color:'inherit'}}>Download JSON</a>}
+            {data?.transcript_path && <a href={`${apiBase}${data.transcript_path}`} target="_blank" rel="noopener noreferrer" style={{border:'1px solid #333',padding:'8px',textDecoration:'none',color:'inherit'}}>Download TXT</a>}
           </div>
           <div style={{display:'flex',gap:'24px',marginTop:'12px'}}>
             <div style={{flex:1}}>
