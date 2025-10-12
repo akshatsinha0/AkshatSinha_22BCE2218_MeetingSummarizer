@@ -115,7 +115,10 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
         )}
         <div className="merriweather-500" style={{border:'1px solid #333',padding:'8px',marginTop:'8px'}}>
           {filtered.length>0 ? filtered.map((s:any,i:number)=>(
-            <div key={i}><strong>{rename[s[0]]||s[0]||''}</strong> {s[1]||''}</div>
+            <div key={i} style={{display:'flex',gap:'12px',marginBottom:'8px'}}>
+              <strong style={{minWidth:'120px',textAlign:'left'}}>{rename[s[0]]||s[0]||''}</strong>
+              <span style={{flex:1,textAlign:'right'}}>{s[1]||''}</span>
+            </div>
           )) : 'Loading...'}
         </div>
       </section>
