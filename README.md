@@ -1,4 +1,4 @@
-# Meeting Summarizer (local, free stack)
+# *Meeting Summarizer (local, free stack)*
 
 ## Tech Stack
 
