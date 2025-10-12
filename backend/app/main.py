@@ -6,6 +6,7 @@ import json
 import threading
 import sqlite3
 import datetime as dt
+import warnings
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
@@ -14,6 +15,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 from fastapi.staticfiles import StaticFiles
+
+# Suppress warnings
+warnings.filterwarnings("ignore", category=UserWarning)
+warnings.filterwarnings("ignore", category=DeprecationWarning)
+os.environ["CTRANSLATE2_VERBOSE"] = "0"
 
 # Load .env from project root if present
 try:
@@ -68,6 +74,7 @@ class JobOut(BaseModel):
 
 # ---- DB & Queue ----
 _conn=sqlite3.connect(DB_PATH,check_same_thread=False)
+_conn.row_factory=sqlite3.Row
 _conn.execute("""
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
@@ -157,7 +164,9 @@ def _budget_add(duration_sec:float)->None:
 def _transcribe(path:str,language=None):
     from faster_whisper import WhisperModel
     model=WhisperModel(WHISPER_MODEL,device="cpu")
-    segments,info=model.transcribe(path,beam_size=1,language=language)
+    # Convert empty string to None for auto-detection
+    lang = language if language and language.strip() else None
+    segments,info=model.transcribe(path,beam_size=1,language=lang)
     out_segments=[]
     parts=[]
     for seg in segments:
@@ -247,7 +256,7 @@ def _diarize(path:str):
     try:
         from pyannote.audio import Pipeline
         print(f"<---->Loading diarization pipeline...")
-        pipeline=Pipeline.from_pretrained("pyannote/speaker-diarization-3.1",token=HF_TOKEN)
+        pipeline=Pipeline.from_pretrained("pyannote/speaker-diarization-3.1",use_auth_token=HF_TOKEN)
         print(f"<---->Running diarization on {path}...")
         annotation=pipeline(path)
         print(f"<---->Diarization complete")
@@ -412,19 +421,35 @@ def _db_upsert_job(job_id:str, **kwargs):
         _conn.commit()
 
 def _job_row_to_out(row)->JobOut:
-    return JobOut(job_id=row[0],status=row[1],created_at=row[2],updated_at=row[3],transcript_path=row[5],summary_path=row[6],segments_path=row[7],model=row[8],language=row[9],diarization_enabled=bool(row[10]) if row[10] is not None else None,progress=row[11],stage=row[12],error=row[13])
+    return JobOut(
+        job_id=row['id'],
+        status=row['status'],
+        created_at=row['created_at'],
+        updated_at=row['updated_at'],
+        transcript_path=row['transcript_path'],
+        summary_path=row['summary_path'],
+        segments_path=row['segments_path'],
+        model=row['model'],
+        language=row['language'],
+        diarization_enabled=bool(row['diarization_enabled']) if row['diarization_enabled'] is not None else None,
+        progress=row['progress'],
+        stage=row['stage'],
+        error=row['error']
+    )
 
 def _process_job(job_id:str, file_path:str, *, model_override:Optional[str]=None, language:Optional[str]=None, diarization_enabled:bool=True, prompt_override:Optional[str]=None):
     try:
         _db_upsert_job(job_id,status='processing',input_path=file_path,stage='preprocess',progress=0.05)
         wav_path=_ensure_wav(file_path)
         _db_upsert_job(job_id,stage='transcribing',progress=0.25)
+        print(f"Job {job_id}: Starting transcription...")
         cloud_text=_transcribe_cloud(wav_path)
         if cloud_text:
             transcript=cloud_text
             segments=[{"start":0.0,"end":0.0,"text":cloud_text}]
         else:
             transcript,segments=_transcribe(wav_path,language=language)
+        print(f"Job {job_id}: Transcription complete")
         _db_upsert_job(job_id,stage='diarizing',progress=0.6)
         diar=_diarize(wav_path) if diarization_enabled else []
         labeled=_assign_speakers(segments,diar)
@@ -445,7 +470,11 @@ def _process_job(job_id:str, file_path:str, *, model_override:Optional[str]=None
         segurl=f"/storage/segments/{job_id}.json"
         _db_upsert_job(job_id,status='done',transcript_path=turl,summary_path=surl,segments_path=segurl,model=model_override or OLLAMA_MODEL,language=language,diarization_enabled=1 if diarization_enabled else 0,stage='done',progress=1.0)
     except Exception as e:
-        _db_upsert_job(job_id,status='error',error=str(e))
+        import traceback
+        error_msg = f"{type(e).__name__}: {e}"
+        print(f"Job {job_id} failed: {error_msg}")
+        traceback.print_exc()
+        _db_upsert_job(job_id,status='error',error=error_msg,stage='error')
 
 @app.post("/api/jobs",response_model=JobOut)
 async def create_job(

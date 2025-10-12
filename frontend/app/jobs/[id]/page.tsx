@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, use } from 'react';
 
-export default function JobView({ params }: { params: { id: string } }) {
+export default function JobView({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
   const [data,setData]=useState<any>(null);
   const [summary,setSummary]=useState<any>(null);
@@ -14,29 +15,41 @@ export default function JobView({ params }: { params: { id: string } }) {
   useEffect(()=>{
     const t=setInterval(async()=>{
       try{
-        const r=await fetch(`${apiBase}/api/jobs/${params.id}`);
+        const r=await fetch(`${apiBase}/api/jobs/${id}`);
         if(!r.ok){ setErr(await r.text()); return; }
         const j=await r.json(); setData(j);
         if(j.status==='done' || j.status==='error') {
           clearInterval(t);
           // fetch summary json
-          if(j.summary_path){ try{ const s=await (await fetch(j.summary_path)).json(); setSummary(s);}catch{} }
-          if(j.segments_path){ try{ const sg=await (await fetch(j.segments_path)).json(); setSegments(sg.segments||[]);}catch{} }
+          if(j.summary_path){ 
+            try{ 
+              const summaryUrl = j.summary_path.startsWith('http') ? j.summary_path : `${apiBase}${j.summary_path}`;
+              const s=await (await fetch(summaryUrl)).json(); 
+              setSummary(s);
+            }catch(e){ console.error('Failed to load summary:', e); } 
+          }
+          if(j.segments_path){ 
+            try{ 
+              const segmentsUrl = j.segments_path.startsWith('http') ? j.segments_path : `${apiBase}${j.segments_path}`;
+              const sg=await (await fetch(segmentsUrl)).json(); 
+              setSegments(sg.segments||[]);
+            }catch(e){ console.error('Failed to load segments:', e); } 
+          }
         }
       }catch(e:any){ setErr(String(e)); }
     },1000);
     return ()=> clearInterval(t);
-  },[params.id]);
+  },[id]);
 
-  async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${params.id}/export/pdf`).then(r=>r.json()).then(j=>window.open(j.pdf,'_blank')); }
-  async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${params.id}/export/docx`).then(r=>r.json()).then(j=>window.open(j.docx,'_blank')); }
+  async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${id}/export/pdf`).then(r=>r.json()).then(j=>window.open(j.pdf,'_blank')); }
+  async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${id}/export/docx`).then(r=>r.json()).then(j=>window.open(j.docx,'_blank')); }
 
   const speakers=Array.from(new Set(segments.map(s=>s[0]).filter(Boolean)));
   const filtered = segments.filter(s=>!filter || (s[1]||'').toLowerCase().includes(filter.toLowerCase()));
 
   return (
     <main style={{minHeight:'100vh',padding:'24px'}}>
-      <h1 className="bbh-sans-bartle-regular" style={{fontSize:'24px'}}>Job {params.id}</h1>
+      <h1 className="bbh-sans-bartle-regular" style={{fontSize:'24px'}}>Job {id}</h1>
       {err && <pre style={{color:'tomato'}}>{err}</pre>}
       <div className="merriweather-500" style={{marginTop:'8px'}}>Status: {data?.status} {data?.stage?`(${data.stage})`:''} {data?.progress?` ${(data.progress*100).toFixed(0)}%`:''}</div>
 
