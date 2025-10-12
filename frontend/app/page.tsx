@@ -4,6 +4,23 @@ import { useState } from 'react';
 
 import { useEffect } from 'react';
 
+const LANGUAGES = [
+  {code:'',name:'Auto-detect'},
+  {code:'en',name:'English'},{code:'es',name:'Spanish'},{code:'fr',name:'French'},
+  {code:'de',name:'German'},{code:'it',name:'Italian'},{code:'pt',name:'Portuguese'},
+  {code:'ru',name:'Russian'},{code:'zh',name:'Chinese'},{code:'ja',name:'Japanese'},
+  {code:'ko',name:'Korean'},{code:'ar',name:'Arabic'},{code:'hi',name:'Hindi'},
+  {code:'bn',name:'Bengali'},{code:'pa',name:'Punjabi'},{code:'te',name:'Telugu'},
+  {code:'mr',name:'Marathi'},{code:'ta',name:'Tamil'},{code:'ur',name:'Urdu'},
+  {code:'gu',name:'Gujarati'},{code:'kn',name:'Kannada'},{code:'ml',name:'Malayalam'},
+  {code:'nl',name:'Dutch'},{code:'tr',name:'Turkish'},{code:'pl',name:'Polish'},
+  {code:'uk',name:'Ukrainian'},{code:'vi',name:'Vietnamese'},{code:'th',name:'Thai'},
+  {code:'id',name:'Indonesian'},{code:'ms',name:'Malay'},{code:'fa',name:'Persian'},
+  {code:'he',name:'Hebrew'},{code:'sv',name:'Swedish'},{code:'no',name:'Norwegian'},
+  {code:'da',name:'Danish'},{code:'fi',name:'Finnish'},{code:'cs',name:'Czech'},
+  {code:'ro',name:'Romanian'},{code:'hu',name:'Hungarian'},{code:'el',name:'Greek'},
+];
+
 export default function Home() {
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8000';
   const [loading, setLoading] = useState(false);
@@ -15,6 +32,7 @@ export default function Home() {
   const [language,setLanguage]=useState<string>('');
   const [prompt,setPrompt]=useState<string>('');
   const [fileInfo,setFileInfo]=useState<{name:string,size:number,duration:number}|null>(null);
+  const [showLangPanel,setShowLangPanel]=useState(false);
 
   useEffect(()=>{(async()=>{try{const r=await fetch(`${apiBase}/api/models`);const j=await r.json();setModels((j.models||[]).map((m:any)=>m.name));}catch{}})();},[]);
 
@@ -100,7 +118,106 @@ export default function Home() {
             <summary>Advanced settings</summary>
             <div style={{display:'flex',flexDirection:'column',gap:'8px',marginTop:'8px'}}>
               <label><input type="checkbox" checked={enableDiar} onChange={()=>setEnableDiar(v=>!v)} /> Enable diarization</label>
-              <label>Language (optional) <input value={language} onChange={e=>setLanguage(e.target.value)} placeholder="en" /></label>
+              
+              <div style={{position:'relative'}}>
+                <label>Language (optional)</label>
+                <div 
+                  onClick={()=>setShowLangPanel(true)}
+                  style={{
+                    padding:'8px',
+                    border:'1px solid #444',
+                    background:'#111',
+                    cursor:'pointer',
+                    marginTop:'4px'
+                  }}
+                >
+                  {LANGUAGES.find(l=>l.code===language)?.name || 'Auto-detect'}
+                </div>
+                
+                {showLangPanel && (
+                  <>
+                    <div 
+                      style={{
+                        position:'fixed',
+                        top:0,
+                        left:0,
+                        right:0,
+                        bottom:0,
+                        background:'rgba(0,0,0,0.5)',
+                        zIndex:999
+                      }}
+                      onClick={()=>setShowLangPanel(false)}
+                    />
+                    <div style={{
+                      position:'fixed',
+                      top:'50%',
+                      left:'50%',
+                      transform:'translate(-50%,-50%)',
+                      display:'flex',
+                      alignItems:'center',
+                      zIndex:1000
+                    }}>
+                      <svg style={{position:'absolute',width:'100%',height:'100%',pointerEvents:'none',left:'-50%',top:0}} viewBox="0 0 800 600">
+                        <defs>
+                          <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+                            <polygon points="0 0, 10 3, 0 6" fill="#888" />
+                          </marker>
+                        </defs>
+                        <line x1="200" y1="300" x2="380" y2="20" stroke="#888" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                        <line x1="200" y1="300" x2="380" y2="580" stroke="#888" strokeWidth="2" markerEnd="url(#arrowhead)" />
+                      </svg>
+                      
+                      <div style={{
+                        width:'0',
+                        height:'0',
+                        borderTop:'20px solid transparent',
+                        borderBottom:'20px solid transparent',
+                        borderRight:'20px solid #333',
+                        marginRight:'-1px'
+                      }}/>
+                      <div style={{
+                        width:'400px',
+                        maxHeight:'500px',
+                        overflowY:'auto',
+                        border:'2px solid #333',
+                        background:'#0a0a0a',
+                        animation:'slideIn 0.2s ease-out'
+                      }}>
+                        <div style={{
+                          padding:'12px',
+                          borderBottom:'1px solid #333',
+                          fontSize:'18px',
+                          fontWeight:'bold',
+                          textAlign:'center',
+                          fontStyle:'italic'
+                        }} className="bbh-sans-bartle-regular">
+                          LANGUAGE OPTIONS
+                        </div>
+                        <div style={{padding:'8px'}}>
+                          {LANGUAGES.map(lang=>(
+                            <div
+                              key={lang.code}
+                              onClick={()=>{setLanguage(lang.code);setShowLangPanel(false);}}
+                              style={{
+                                padding:'10px',
+                                border:'1px solid #333',
+                                marginBottom:'4px',
+                                cursor:'pointer',
+                                background:language===lang.code?'#222':'#111',
+                                textAlign:'center'
+                              }}
+                              className="merriweather-500"
+                            >
+                              {lang.name}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
               <label>Custom prompt <textarea value={prompt} onChange={e=>setPrompt(e.target.value)} rows={4} /></label>
             </div>
           </details>
