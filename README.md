@@ -21,10 +21,52 @@ Setup (Windows / PowerShell)
      - Backend: `./backend/run_dev.ps1`
      - Frontend: `cd frontend && npm run dev`
 
-API quick test (once backend is running)
-- Synchronous (small files): POST http://localhost:8000/api/process with form-data `file=@path/to/audio.mp3`
-- Async job (recommended): POST http://localhost:8000/api/jobs with form-data `file=@path/to/audio.mp3` → returns job_id
-- Poll: GET http://localhost:8000/api/jobs/{job_id}
+API quick test (once backend is running locally, that's why localhost)
+
+1. Test health endpoint:
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/health" -Method Get
+```
+Expected output:
+```
+status      : ok
+diarization : enabled
+model       : gemma3:4b
+```
+
+2. List available Ollama models:
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/models" -Method Get
+```
+Expected output: JSON with list of installed Ollama models
+
+3. List all jobs:
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/jobs" -Method Get
+```
+Expected output: Array of job objects (empty if no jobs created yet)
+
+4. Create async job (recommended for all files):
+```powershell
+$audioFile = "path\to\your\audio.mp3"
+$form = @{ file = Get-Item -Path $audioFile }
+Invoke-RestMethod -Uri "http://localhost:8000/api/jobs" -Method Post -Form $form
+```
+Expected output: Job object with `job_id`, `status: "queued"`, and other metadata
+
+5. Check job status (replace JOB_ID with actual ID from step 4):
+```powershell
+Invoke-RestMethod -Uri "http://localhost:8000/api/jobs/JOB_ID" -Method Get
+```
+Expected output: Job object with current `status` (queued → processing → done), `progress`, `stage`, and paths to results
+
+6. Synchronous processing (only for small files, <2 min):
+```powershell
+$audioFile = "path\to\your\audio.mp3"
+$form = @{ file = Get-Item -Path $audioFile }
+Invoke-RestMethod -Uri "http://localhost:8000/api/process" -Method Post -Form $form
+```
+Expected output: JSON with `transcript`, `summary`, `decisions`, and `action_items`
 
 Notes
 - Ollama must be running and the model specified by `OLLAMA_MODEL` must be pulled (currently gemma3:4b).
