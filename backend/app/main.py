@@ -62,6 +62,7 @@ class JobOut(BaseModel):
     status:str
     created_at:str
     updated_at:str
+    input_path:Optional[str]=None
     transcript_path:Optional[str]=None
     summary_path:Optional[str]=None
     segments_path:Optional[str]=None
@@ -421,11 +422,20 @@ def _db_upsert_job(job_id:str, **kwargs):
         _conn.commit()
 
 def _job_row_to_out(row)->JobOut:
+    # Convert input_path to URL if it exists
+    input_url = None
+    if row['input_path']:
+        # Extract filename from full path
+        import os
+        filename = os.path.basename(row['input_path'])
+        input_url = f"/storage/audio/{filename}"
+    
     return JobOut(
         job_id=row['id'],
         status=row['status'],
         created_at=row['created_at'],
         updated_at=row['updated_at'],
+        input_path=input_url,
         transcript_path=row['transcript_path'],
         summary_path=row['summary_path'],
         segments_path=row['segments_path'],

@@ -53,6 +53,17 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
       {err && <pre style={{color:'tomato'}}>{err}</pre>}
       <div className="merriweather-500" style={{marginTop:'8px'}}>Status: {data?.status} {data?.stage?`(${data.stage})`:''} {data?.progress?` ${(data.progress*100).toFixed(0)}%`:''}</div>
 
+      {data?.input_path && (
+        <div style={{marginTop:'16px',padding:'12px',border:'1px solid #333',background:'#0a0a0a'}}>
+          <h3 className="merriweather-500" style={{fontSize:'16px',marginBottom:'8px'}}>Audio</h3>
+          <audio 
+            controls 
+            src={data.input_path.startsWith('http') ? data.input_path : `${apiBase}${data.input_path}`}
+            style={{width:'100%',maxWidth:'600px'}}
+          />
+        </div>
+      )}
+
       {summary && (
         <section style={{marginTop:'16px'}}>
           <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Summary</h2>
