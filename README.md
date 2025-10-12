@@ -1,14 +1,15 @@
 # Meeting Summarizer (local, free stack)
 
-- Backend: FastAPI + faster-whisper (offline ASR) + Ollama (local LLM)
+- Backend: FastAPI + faster-whisper (offline ASR) + Ollama (local LLM) + Rust extensions (PyO3)
 - Frontend: Next.js (App Router).
 - Storage: local filesystem + SQLite for jobs, with a simple background worker.
 
 Setup (Windows / PowerShell)
-1. Ensure Node, Python 3.11, Git, FFmpeg, Ollama are installed. I already installed most during bootstrap.
+1. Ensure Node, Python 3.11, Git, FFmpeg, Ollama, Rust are installed. I already installed most during bootstrap.
 2. Create venv and install deps:
    - python 3.11 venv at `.venv` is already created
    - To install deps from file: `.venv\Scripts\pip install -r backend/requirements.txt`
+   - Build Rust extensions: `.venv\Scripts\maturin develop --manifest-path backend/rust_audio/Cargo.toml --release`
 3. Copy `.env.example` to `.env` (root) and edit FFMPEG_BIN/OLLAMA_MODEL if needed.
 4. Get HF token from https://huggingface.co/settings/tokens and add to `.env` as `HF_TOKEN` (required for speaker diarization).
 5. Start both backend and frontend:

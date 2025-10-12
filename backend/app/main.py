@@ -135,10 +135,15 @@ def _ensure_wav(input_path:str)->str:
 
 def _get_audio_duration(path:str)->float:
     try:
-        r=subprocess.run([FFMPEG_BIN.replace('ffmpeg','ffprobe'),"-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1",path],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,text=True)
-        return float(r.stdout.strip())
+        import rust_audio
+        duration, sample_rate, channels = rust_audio.validate_audio_file(path)
+        return duration
     except Exception:
-        return 0.0
+        try:
+            r=subprocess.run([FFMPEG_BIN.replace('ffmpeg','ffprobe'),"-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1",path],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=True,text=True)
+            return float(r.stdout.strip())
+        except Exception:
+            return 0.0
 
 def _budget_allow(duration_sec:float)->bool:
     if DAILY_ASR_BUDGET_MIN<=0:
