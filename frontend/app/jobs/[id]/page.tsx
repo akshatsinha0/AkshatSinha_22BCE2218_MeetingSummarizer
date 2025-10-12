@@ -210,8 +210,8 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
           </div>
 
           {customSummary && (
-            <div style={{marginBottom:'16px',padding:'12px',border:'2px solid #00ccff',background:'#0a0a0a'}}>
-              <h3 className="bbh-sans-bartle-regular" style={{fontSize:'18px',marginBottom:'8px',color:'#00ccff'}}>Custom Analysis Result</h3>
+            <div style={{marginBottom:'16px',padding:'12px',border:'2px solid #a855f7',background:'#0a0a0a'}}>
+              <h3 className="bbh-sans-bartle-regular" style={{fontSize:'18px',marginBottom:'8px',color:'#a855f7'}}>Custom Analysis Result</h3>
               {customSummary.summary && (
                 <p className="merriweather-500" style={{padding:'12px',border:'1px solid #333',background:'#111',marginBottom:'12px'}}>{customSummary.summary}</p>
               )}
