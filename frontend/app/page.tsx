@@ -144,13 +144,20 @@ export default function Home() {
 
 function RecentJobs({apiBase}:{apiBase:string}){
   const [items,setItems]=useState<any[]>([]);
+  const [open,setOpen]=useState(false);
   useEffect(()=>{(async()=>{try{const r=await fetch(`${apiBase}/api/jobs`);setItems(await r.json());}catch{}})();},[]);
   return (
-    <div className="box" style={{marginTop:'8px',border:'1px solid #333',padding:'8px'}}>
-      <div className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Recent uploads</div>
-      <ul>
-        {items.map((j:any)=>(<li key={j.job_id}><a href={`/jobs/${j.job_id}`}>{j.job_id}</a> – {j.status} {j.stage?`(${j.stage})`:''}</li>))}
+    <details className="box" style={{marginTop:'8px',border:'1px solid #333',padding:'8px'}} open={open} onToggle={e=>setOpen(e.currentTarget.open)}>
+      <summary className="bbh-sans-bartle-regular" style={{fontSize:'20px',cursor:'pointer'}}>Recent uploads ({items.length})</summary>
+      <ul className="merriweather-500" style={{marginTop:'8px',listStyle:'none',display:'flex',flexDirection:'column',gap:'4px'}}>
+        {items.length===0 && <li style={{color:'#888'}}>No recent uploads</li>}
+        {items.map((j:any)=>(
+          <li key={j.job_id} style={{padding:'4px',border:'1px solid #333',background:'#0a0a0a'}}>
+            <a href={`/jobs/${j.job_id}`} style={{color:'#4a9eff'}}>{j.job_id.slice(0,8)}...</a>
+            {' '}– {j.status} {j.stage?`(${j.stage})`:''} {j.progress?` ${(j.progress*100).toFixed(0)}%`:''}
+          </li>
+        ))}
       </ul>
-    </div>
+    </details>
   );
 }
