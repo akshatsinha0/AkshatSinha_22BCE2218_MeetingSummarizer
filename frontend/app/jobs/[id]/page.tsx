@@ -84,8 +84,9 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
 
   return (
     <>
-      <div style={{position:'fixed',top:0,left:0,right:0,background:'#000',zIndex:100,padding:'24px',paddingBottom:'12px',borderBottom:'1px solid #333',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
-        <h1 className="bbh-sans-bartle-regular" style={{fontSize:'24px'}}>Job {id}</h1>
+      <div style={{position:'fixed',top:0,left:0,right:0,background:'#000',zIndex:100,padding:'24px',paddingBottom:'12px',borderBottom:'1px solid #333',boxShadow:'0 2px 8px rgba(0,0,0,0.5)',display:'flex',justifyContent:'space-between',alignItems:'flex-start'}}>
+        <div style={{flex:1}}>
+          <h1 className="bbh-sans-bartle-regular" style={{fontSize:'24px'}}>Job {id}</h1>
         {data?.status === 'done' && data?.progress === 1.0 && (
           <svg width="100%" height="4" style={{marginTop:'8px',marginBottom:'8px'}}>
             <defs>
@@ -105,6 +106,10 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
         )}
         {err && <pre style={{color:'tomato'}}>{err}</pre>}
         <div className="merriweather-500" style={{marginTop:'8px'}}>Status: {data?.status} {data?.stage?`(${data.stage})`:''} {data?.progress?` ${(data.progress*100).toFixed(0)}%`:''}</div>
+        </div>
+        <a href="/" style={{padding:'8px 16px',border:'1px solid #444',background:'#111',color:'#fff',textDecoration:'none',display:'inline-block',marginLeft:'16px'}}>
+          + Add Another Audio
+        </a>
       </div>
       <main style={{minHeight:'100vh',paddingTop:'140px'}}>
       <div style={{padding:'24px'}}>
