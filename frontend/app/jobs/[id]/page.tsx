@@ -83,8 +83,8 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
   }
 
   return (
-    <main style={{minHeight:'100vh'}}>
-      <div style={{position:'sticky',top:0,background:'#000',zIndex:100,padding:'24px',paddingBottom:'12px',borderBottom:'1px solid #333'}}>
+    <main style={{minHeight:'100vh',position:'relative'}}>
+      <div style={{position:'sticky',top:0,background:'#000',zIndex:100,padding:'24px',paddingBottom:'12px',borderBottom:'1px solid #333',boxShadow:'0 2px 8px rgba(0,0,0,0.5)'}}>
         <h1 className="bbh-sans-bartle-regular" style={{fontSize:'24px'}}>Job {id}</h1>
         {data?.status === 'done' && data?.progress === 1.0 && (
           <svg width="100%" height="4" style={{marginTop:'8px',marginBottom:'8px'}}>
