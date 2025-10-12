@@ -11,6 +11,8 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
   const [err,setErr]=useState<string>('');
   const [filter,setFilter]=useState('');
   const [rename,setRename]=useState<Record<string,string>>({});
+  const [revealedLines,setRevealedLines]=useState<Set<number>>(new Set());
+  const [typewriterText,setTypewriterText]=useState<Record<number,string>>({});
 
   useEffect(()=>{
     const t=setInterval(async()=>{
@@ -46,6 +48,33 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
 
   const speakers=Array.from(new Set(segments.map(s=>s[0]).filter(Boolean)));
   const filtered = segments.filter(s=>!filter || (s[1]||'').toLowerCase().includes(filter.toLowerCase()));
+
+  function revealLine(index:number,text:string){
+    if(revealedLines.has(index))return;
+    setRevealedLines(prev=>new Set(prev).add(index));
+    let currentText='';
+    let charIndex=0;
+    const interval=setInterval(()=>{
+      if(charIndex<text.length){
+        currentText+=text[charIndex];
+        setTypewriterText(prev=>({...prev,[index]:currentText}));
+        charIndex++;
+      }else{
+        clearInterval(interval);
+      }
+    },10);
+  }
+
+  function revealAll(){
+    const newRevealed=new Set<number>();
+    const newText:Record<number,string>={};
+    filtered.forEach((s,i)=>{
+      newRevealed.add(i);
+      newText[i]=s[1]||'';
+    });
+    setRevealedLines(newRevealed);
+    setTypewriterText(newText);
+  }
 
   return (
     <main style={{minHeight:'100vh',padding:'24px'}}>
@@ -119,9 +148,21 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
       )}
 
       <section style={{marginTop:'16px'}}>
-        <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-          <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Transcript</h2>
-          <input placeholder="Search..." value={filter} onChange={e=>setFilter(e.target.value)} />
+        <div style={{display:'flex',gap:'8px',alignItems:'center',justifyContent:'space-between'}}>
+          <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
+            <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Transcript</h2>
+            <input placeholder="Search..." value={filter} onChange={e=>setFilter(e.target.value)} />
+          </div>
+          <button 
+            onClick={revealAll}
+            style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}}
+            title="Reveal all lines"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M1 8h14M8 1v14"/>
+            </svg>
+            Show All
+          </button>
         </div>
         {speakers.length>0 && (
           <div className="merriweather-500" style={{display:'flex',gap:'12px',flexWrap:'wrap',marginTop:'8px'}}>
@@ -133,9 +174,20 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
         <div className="merriweather-500" style={{border:'1px solid #333',padding:'8px',marginTop:'8px'}}>
           {filtered.length>0 ? filtered.map((s:any,i:number)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+              <button
+                onClick={()=>revealLine(i,s[1]||'')}
+                style={{background:'none',border:'none',cursor:'pointer',padding:'4px',flexShrink:0}}
+                title="Reveal line"
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <polygon points="4,2 12,8 4,14"/>
+                </svg>
+              </button>
               <strong style={{minWidth:'120px',textAlign:'left',flexShrink:0}}>{rename[s[0]]||s[0]||''}</strong>
               <div style={{flex:1,borderBottom:'1px dotted #555',height:'1px'}}></div>
-              <span style={{textAlign:'right',flexShrink:0}}>{s[1]||''}</span>
+              <span style={{textAlign:'right',flexShrink:0,minHeight:'20px'}}>
+                {revealedLines.has(i) ? (typewriterText[i]||s[1]||'') : ''}
+              </span>
             </div>
           )) : 'Loading...'}
         </div>
