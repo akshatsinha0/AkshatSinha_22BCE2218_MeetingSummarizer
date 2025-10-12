@@ -11,6 +11,45 @@
 ## Demo Video
 Watch the demo: [Meeting Summarizer Demo](https://drive.google.com/file/d/1SmWLG85v2LzqkVThGXOmt4uf1i5xPsnI/view?usp=sharing)
 
+## Project Deliverables - Meeting Summarizer
+
+**Objective:** Transcribe meeting audio and generate action-oriented summaries
+
+### ✅ Completed Features
+
+- [x] **Audio Input Support** - Accepts meeting audio files in multiple formats (MP3, WAV, etc.)
+- [x] **Text Transcript Generation** - Using OpenAI Whisper (faster-whisper implementation, large-v3-turbo model)
+- [x] **ASR API Integration** - Integrated with:
+  - Primary: OpenAI Whisper (local, offline, zero-cost)
+  - Optional: Azure Speech, Deepgram (cloud fallback with budget controls)
+- [x] **Speaker Diarization** - Identifies and labels different speakers using pyannote
+- [x] **Summary Generation** - LLM-powered summaries highlighting key points
+- [x] **Key Decisions Extraction** - Automatically identifies and lists decisions made
+- [x] **Action Items Generation** - Extracts actionable tasks from meetings
+- [x] **Backend Data Processing** - FastAPI backend with SQLite storage for job management
+- [x] **Frontend UI** - Next.js web interface to upload audio and view results
+- [x] **Async Job Processing** - Background worker for handling long audio files
+- [x] **Progress Tracking** - Real-time status updates during processing
+- [x] **Export Options** - PDF and DOCX export for summaries
+
+### Technical Implementation
+
+**ASR (Automatic Speech Recognition):**
+- Primary: OpenAI Whisper via faster-whisper (local, offline)
+- Model: large-v3-turbo (configurable via WHISPER_MODEL env variable)
+- Optional cloud providers: Azure Speech, Deepgram with daily budget limits
+
+**LLM for Summarization:**
+- Ollama integration (local LLM, zero-cost)
+- Default model: gemma3:4b (configurable)
+- Prompt: "Summarize this meeting transcript into key decisions and action items"
+- Output: Structured JSON with summary, decisions array, and action_items array
+
+**Performance Optimizations:**
+- Rust extensions (PyO3) for audio validation and processing
+- Background job queue with ThreadPoolExecutor
+- SQLite for lightweight job persistence
+
 Setup (Windows / PowerShell)
 1. Ensure Node, Python 3.11, Git, FFmpeg, Ollama, Rust are installed. I already installed most during bootstrap.
 2. Create venv and install deps:
