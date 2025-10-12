@@ -1,8 +1,12 @@
 # Meeting Summarizer (local, free stack)
 
-- Backend: FastAPI + faster-whisper (offline ASR) + Ollama (local LLM) + Rust extensions (PyO3)
-- Frontend: Next.js (App Router).
-- Storage: local filesystem + SQLite for jobs, with a simple background worker.
+## Tech Stack
+
+### Backend: FastAPI + faster-whisper (offline ASR) + Ollama (local LLM) + Rust extensions (PyO3)
+
+### Frontend: Next.js (App Router)
+
+### Storage: local filesystem + SQLite for jobs, with a simple background worker
 
 ## Demo Video
 Watch the demo: [Meeting Summarizer Demo](https://drive.google.com/file/d/1SmWLG85v2LzqkVThGXOmt4uf1i5xPsnI/view?usp=sharing)
