@@ -72,6 +72,7 @@ class JobOut(BaseModel):
     progress:Optional[float]=None
     stage:Optional[str]=None
     error:Optional[str]=None
+    filename:Optional[str]=None
 
 # ---- DB & Queue ----
 _conn=sqlite3.connect(DB_PATH,check_same_thread=False)
@@ -91,14 +92,15 @@ CREATE TABLE IF NOT EXISTS jobs (
   diarization_enabled INTEGER,
   progress REAL,
   stage TEXT,
-  error TEXT
+  error TEXT,
+  filename TEXT
 )
 """)
 # simple migration to add columns if missing
 try:
     cols={r[1] for r in _conn.execute("PRAGMA table_info(jobs)").fetchall()}
     for name,type_ in [
-        ("segments_path","TEXT"),("model","TEXT"),("language","TEXT"),("diarization_enabled","INTEGER"),("progress","REAL"),("stage","TEXT")
+        ("segments_path","TEXT"),("model","TEXT"),("language","TEXT"),("diarization_enabled","INTEGER"),("progress","REAL"),("stage","TEXT"),("filename","TEXT")
     ]:
         if name not in cols:
             _conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {type_}")
@@ -427,11 +429,8 @@ def _db_upsert_job(job_id:str, **kwargs):
         _conn.commit()
 
 def _job_row_to_out(row)->JobOut:
-    # Convert input_path to URL if it exists
     input_url = None
     if row['input_path']:
-        # Extract filename from full path
-        import os
         filename = os.path.basename(row['input_path'])
         input_url = f"/storage/audio/{filename}"
     
@@ -449,7 +448,8 @@ def _job_row_to_out(row)->JobOut:
         diarization_enabled=bool(row['diarization_enabled']) if row['diarization_enabled'] is not None else None,
         progress=row['progress'],
         stage=row['stage'],
-        error=row['error']
+        error=row['error'],
+        filename=row.get('filename')
     )
 
 def _process_job(job_id:str, file_path:str, *, model_override:Optional[str]=None, language:Optional[str]=None, diarization_enabled:bool=True, prompt_override:Optional[str]=None):
@@ -500,11 +500,12 @@ async def create_job(
     prompt:Optional[str]=Form(None)
 ):
     job_id=str(uuid.uuid4())
-    suffix=os.path.splitext(file.filename or "audio")[1] or ".wav"
+    original_filename=file.filename or "audio"
+    suffix=os.path.splitext(original_filename)[1] or ".wav"
     audio_path=os.path.join(STORAGE_DIR,"audio",f"{job_id}{suffix}")
     with open(audio_path,'wb') as f:
         f.write(await file.read())
-    _db_upsert_job(job_id,status='queued',input_path=audio_path,model=model or OLLAMA_MODEL,language=language,diarization_enabled=1 if diarization_enabled else 0,progress=0.0,stage='queued')
+    _db_upsert_job(job_id,status='queued',input_path=audio_path,model=model or OLLAMA_MODEL,language=language,diarization_enabled=1 if diarization_enabled else 0,progress=0.0,stage='queued',filename=original_filename)
     _executor.submit(_process_job,job_id,audio_path,model_override=model,language=language,diarization_enabled=bool(diarization_enabled),prompt_override=prompt)
     with _db_lock:
         row=_conn.execute("SELECT * FROM jobs WHERE id=?",(job_id,)).fetchone()

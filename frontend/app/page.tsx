@@ -263,15 +263,37 @@ function RecentJobs({apiBase}:{apiBase:string}){
   const [items,setItems]=useState<any[]>([]);
   const [open,setOpen]=useState(false);
   useEffect(()=>{(async()=>{try{const r=await fetch(`${apiBase}/api/jobs`);setItems(await r.json());}catch{}})();},[]);
+  
+  function timeAgo(isoDate:string){
+    const now=new Date().getTime();
+    const then=new Date(isoDate+'Z').getTime();
+    const diff=Math.floor((now-then)/1000);
+    if(diff<60)return 'just now';
+    if(diff<3600)return `${Math.floor(diff/60)}m ago`;
+    if(diff<86400)return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  }
+  
   return (
     <details className="box" style={{marginTop:'8px',border:'1px solid #333',padding:'8px'}} open={open} onToggle={e=>setOpen(e.currentTarget.open)}>
       <summary className="bbh-sans-bartle-regular" style={{fontSize:'20px',cursor:'pointer'}}>Recent uploads ({items.length})</summary>
       <ul className="merriweather-500" style={{marginTop:'8px',listStyle:'none',display:'flex',flexDirection:'column',gap:'4px'}}>
         {items.length===0 && <li style={{color:'#888'}}>No recent uploads</li>}
         {items.map((j:any)=>(
-          <li key={j.job_id} style={{padding:'4px',border:'1px solid #333',background:'#0a0a0a'}}>
-            <a href={`/jobs/${j.job_id}`} style={{color:'#4a9eff'}}>{j.job_id.slice(0,8)}...</a>
-            {' '}– {j.status} {j.stage?`(${j.stage})`:''} {j.progress?` ${(j.progress*100).toFixed(0)}%`:''}
+          <li key={j.job_id} style={{padding:'8px',border:'1px solid #333',background:'#0a0a0a'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{flex:1}}>
+                <a href={`/jobs/${j.job_id}`} style={{color:'#4a9eff',fontSize:'15px'}}>
+                  {j.filename || 'audio file'} • {timeAgo(j.created_at)}
+                </a>
+                <div style={{fontSize:'11px',color:'#666',marginTop:'2px'}}>
+                  {j.job_id.slice(0,8)}...
+                </div>
+              </div>
+              <div style={{fontSize:'13px',color:'#aaa',textAlign:'right'}}>
+                {j.status} {j.stage?`(${j.stage})`:''} {j.progress?` ${(j.progress*100).toFixed(0)}%`:''}
+              </div>
+            </div>
           </li>
         ))}
       </ul>
