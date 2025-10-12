@@ -9,6 +9,7 @@ export default function JobView({ params }: { params: { id: string } }) {
   const [segments,setSegments]=useState<any[]>([]);
   const [err,setErr]=useState<string>('');
   const [filter,setFilter]=useState('');
+  const [rename,setRename]=useState<Record<string,string>>({});
 
   useEffect(()=>{
     const t=setInterval(async()=>{
@@ -30,6 +31,7 @@ export default function JobView({ params }: { params: { id: string } }) {
   async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${params.id}/export/pdf`).then(r=>r.json()).then(j=>window.open(j.pdf,'_blank')); }
   async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${params.id}/export/docx`).then(r=>r.json()).then(j=>window.open(j.docx,'_blank')); }
 
+  const speakers=Array.from(new Set(segments.map(s=>s[0]).filter(Boolean)));
   const filtered = segments.filter(s=>!filter || (s[1]||'').toLowerCase().includes(filter.toLowerCase()));
 
   return (
@@ -70,9 +72,16 @@ export default function JobView({ params }: { params: { id: string } }) {
           <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Transcript</h2>
           <input placeholder="Search..." value={filter} onChange={e=>setFilter(e.target.value)} />
         </div>
+        {speakers.length>0 && (
+          <div className="merriweather-500" style={{display:'flex',gap:'12px',flexWrap:'wrap',marginTop:'8px'}}>
+            {speakers.map(spk=> (
+              <label key={spk}>Rename {spk}: <input value={rename[spk]||''} onChange={e=>setRename({...rename,[spk]:e.target.value})} /></label>
+            ))}
+          </div>
+        )}
         <div className="merriweather-500" style={{border:'1px solid #333',padding:'8px',marginTop:'8px'}}>
           {filtered.length>0 ? filtered.map((s:any,i:number)=>(
-            <div key={i}><strong>{s[0]||''}</strong> {s[1]||''}</div>
+            <div key={i}><strong>{rename[s[0]]||s[0]||''}</strong> {s[1]||''}</div>
           )) : 'Loading...'}
         </div>
       </section>
