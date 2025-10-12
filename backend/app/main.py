@@ -229,14 +229,18 @@ def _transcribe_cloud(path:str):
 
 def _summarize(transcript:str,*,model:Optional[str]=None,prompt_override:Optional[str]=None)->SummaryOut:
     import json,requests
-    prompt=(prompt_override or (
-        "You are a meeting summarizer. Analyze the transcript and provide:\n"
-        "1. A concise summary of the meeting\n"
-        "2. Key decisions made (if any)\n"
-        "3. Action items with owners (if any)\n\n"
-        "Return ONLY valid JSON in this exact format:\n"
-        '{"summary": "text here", "decisions": ["decision 1", "decision 2"], "action_items": ["action 1", "action 2"]}\n\n'
-    ))+f"Transcript:\n{transcript}\n\nJSON:"
+    if prompt_override:
+        prompt=f"{prompt_override}\n\nAnalyze the following transcript and return ONLY valid JSON with keys: summary, decisions (array), action_items (array).\n\nTranscript:\n{transcript}\n\nJSON:"
+    else:
+        prompt=(
+            "You are a meeting summarizer. Analyze the transcript and provide:\n"
+            "1. A concise summary of the meeting\n"
+            "2. Key decisions made (if any)\n"
+            "3. Action items with owners (if any)\n\n"
+            "Return ONLY valid JSON in this exact format:\n"
+            '{"summary": "text here", "decisions": ["decision 1", "decision 2"], "action_items": ["action 1", "action 2"]}\n\n'
+            f"Transcript:\n{transcript}\n\nJSON:"
+        )
     payload={"model":(model or OLLAMA_MODEL),"prompt":prompt,"stream":False,"format":"json"}
     try:
         r=requests.post(f"{OLLAMA_BASE_URL}/api/generate",json=payload,timeout=600)
