@@ -4,6 +4,9 @@
 - Frontend: Next.js (App Router).
 - Storage: local filesystem + SQLite for jobs, with a simple background worker.
 
+## Demo Video
+Watch the demo: [Meeting Summarizer Demo](https://drive.google.com/file/d/1SmWLG85v2LzqkVThGXOmt4uf1i5xPsnI/view?usp=sharing)
+
 Setup (Windows / PowerShell)
 1. Ensure Node, Python 3.11, Git, FFmpeg, Ollama, Rust are installed. I already installed most during bootstrap.
 2. Create venv and install deps:
