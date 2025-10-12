@@ -51,7 +51,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
     <main style={{minHeight:'100vh',padding:'24px'}}>
       <h1 className="bbh-sans-bartle-regular" style={{fontSize:'24px'}}>Job {id}</h1>
       {data?.status === 'done' && data?.progress === 1.0 && (
-        <div style={{width:'100%',borderBottom:'2px solid #4a9eff',marginTop:'8px',marginBottom:'8px'}}></div>
+        <div style={{width:'100%',height:'2px',background:'linear-gradient(90deg, #00ff88, #00ccff)',marginTop:'8px',marginBottom:'8px'}}></div>
       )}
       {err && <pre style={{color:'tomato'}}>{err}</pre>}
       <div className="merriweather-500" style={{marginTop:'8px'}}>Status: {data?.status} {data?.stage?`(${data.stage})`:''} {data?.progress?` ${(data.progress*100).toFixed(0)}%`:''}</div>
