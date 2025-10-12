@@ -57,6 +57,10 @@ class SummaryOut(BaseModel):
     decisions:List[str]
     action_items:List[str]
 
+class ReanalyzeRequest(BaseModel):
+    transcript:str
+    prompt:str
+
 class JobOut(BaseModel):
     job_id:str
     status:str
@@ -540,3 +544,7 @@ async def list_jobs(limit:int=20):
     with _db_lock:
         rows=_conn.execute("SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",(limit,)).fetchall()
     return [_job_row_to_out(r) for r in rows]
+
+@app.post("/api/reanalyze")
+async def reanalyze_transcript(req:ReanalyzeRequest):
+    return _summarize(req.transcript,prompt_override=req.prompt)

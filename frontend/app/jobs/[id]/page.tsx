@@ -14,6 +14,17 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
   const [revealedLines,setRevealedLines]=useState<Set<number>>(new Set());
   const [typewriterText,setTypewriterText]=useState<Record<number,string>>({});
   const [animatingLines,setAnimatingLines]=useState<Set<number>>(new Set());
+  const [customPrompt,setCustomPrompt]=useState('');
+  const [customSummary,setCustomSummary]=useState<any>(null);
+  const [reanalyzing,setReanalyzing]=useState(false);
+
+  const promptSuggestions = [
+    "Extract only the key technical decisions and their rationale",
+    "List all mentioned deadlines and deliverables with owners",
+    "Identify risks, blockers, and mitigation strategies discussed",
+    "Summarize budget discussions and financial commitments",
+    "Create a timeline of events and milestones mentioned"
+  ];
 
   useEffect(()=>{
     const t=setInterval(async()=>{
@@ -46,6 +57,30 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
 
   async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${id}/export/pdf`).then(r=>r.json()).then(j=>window.open(`${apiBase}${j.pdf}`,'_blank')); }
   async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${id}/export/docx`).then(r=>r.json()).then(j=>window.open(`${apiBase}${j.docx}`,'_blank')); }
+
+  async function reanalyzeWithPrompt(){
+    if(!customPrompt.trim() || !data?.transcript_path) return;
+    setReanalyzing(true);
+    try{
+      const transcriptUrl = data.transcript_path.startsWith('http') ? data.transcript_path : `${apiBase}${data.transcript_path}`;
+      const transcriptRes = await fetch(transcriptUrl);
+      const transcript = await transcriptRes.text();
+      
+      const res = await fetch(`${apiBase}/api/reanalyze`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({transcript, prompt: customPrompt})
+      });
+      
+      if(!res.ok) throw new Error('Reanalysis failed');
+      const result = await res.json();
+      setCustomSummary(result);
+    }catch(e:any){
+      alert('Error: ' + e.message);
+    }finally{
+      setReanalyzing(false);
+    }
+  }
 
   const speakers=Array.from(new Set(segments.map(s=>s[0]).filter(Boolean)));
   const filtered = segments.filter(s=>!filter || (s[1]||'').toLowerCase().includes(filter.toLowerCase()));
@@ -134,7 +169,61 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
 
       {summary && (
         <section style={{marginTop:'16px'}}>
-          <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Summary</h2>
+          <div style={{marginBottom:'16px',padding:'12px',border:'1px solid #333',background:'#0a0a0a'}}>
+            <h3 className="merriweather-500" style={{fontSize:'16px',marginBottom:'8px'}}>Custom Analysis Prompt</h3>
+            <textarea 
+              value={customPrompt}
+              onChange={e=>setCustomPrompt(e.target.value)}
+              placeholder="Enter a custom prompt to reanalyze the transcript..."
+              rows={3}
+              style={{width:'100%',padding:'8px',background:'#111',border:'1px solid #444',color:'#fff',resize:'vertical'}}
+            />
+            <div style={{marginTop:'8px',marginBottom:'8px'}}>
+              <p className="merriweather-500" style={{fontSize:'12px',color:'#666',fontStyle:'italic',marginBottom:'4px'}}>Suggestions:</p>
+              {promptSuggestions.map((suggestion,i)=>(
+                <button
+                  key={i}
+                  onClick={()=>setCustomPrompt(suggestion)}
+                  style={{display:'block',background:'none',border:'none',color:'#666',fontStyle:'italic',fontSize:'12px',cursor:'pointer',padding:'2px 0',textAlign:'left'}}
+                  className="merriweather-500"
+                >
+                  • {suggestion}
+                </button>
+              ))}
+            </div>
+            <button 
+              onClick={reanalyzeWithPrompt}
+              disabled={!customPrompt.trim() || reanalyzing}
+              style={{padding:'8px 16px',border:'1px solid #444',background:reanalyzing?'#555':'#111',cursor:reanalyzing?'wait':'pointer'}}
+            >
+              {reanalyzing ? 'Analyzing...' : 'Reanalyze with Custom Prompt'}
+            </button>
+          </div>
+
+          {customSummary && (
+            <div style={{marginBottom:'16px',padding:'12px',border:'2px solid #00ccff',background:'#0a0a0a'}}>
+              <h3 className="bbh-sans-bartle-regular" style={{fontSize:'18px',marginBottom:'8px',color:'#00ccff'}}>Custom Analysis Result</h3>
+              <p className="merriweather-500" style={{padding:'12px',border:'1px solid #333',background:'#111'}}>{customSummary.summary}</p>
+              {customSummary.decisions && customSummary.decisions.length > 0 && (
+                <div style={{marginTop:'12px'}}>
+                  <h4 className="merriweather-500" style={{fontSize:'14px',marginBottom:'4px'}}>Decisions:</h4>
+                  <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
+                    {customSummary.decisions.map((d:string,i:number)=>(<li key={i}>{d}</li>))}
+                  </ul>
+                </div>
+              )}
+              {customSummary.action_items && customSummary.action_items.length > 0 && (
+                <div style={{marginTop:'12px'}}>
+                  <h4 className="merriweather-500" style={{fontSize:'14px',marginBottom:'4px'}}>Action Items:</h4>
+                  <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
+                    {customSummary.action_items.map((a:string,i:number)=>(<li key={i}>{a}</li>))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Original Summary</h2>
           <p className="merriweather-500" style={{padding:'12px',border:'1px solid #333'}}>{summary.summary}</p>
           <div style={{display:'flex',gap:'12px',marginTop:'8px'}}>
             <button onClick={exportPdf} style={{border:'1px solid #333',padding:'8px'}}>Export PDF</button>

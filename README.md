@@ -9,7 +9,7 @@ Setup (Windows / PowerShell)
 2. Create venv and install deps:
    - python 3.11 venv at `.venv` is already created
    - To install deps from file: `.venv\Scripts\pip install -r backend/requirements.txt`
-   - Build Rust extensions: `.venv\Scripts\maturin develop --manifest-path backend/rust_audio/Cargo.toml --release`
+   - Build Rust extensions: `.venv\Scripts\maturin develop --manifest-path backend/rust_audio/Cargo.toml -
 3. Copy `.env.example` to `.env` (root) and edit FFMPEG_BIN/OLLAMA_MODEL if needed.
 4. Get HF token from https://huggingface.co/settings/tokens and add to `.env` as `HF_TOKEN` (required for speaker diarization).
 5. Start both backend and frontend:
