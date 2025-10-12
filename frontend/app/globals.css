@@ -29,7 +29,7 @@ body {
 .merriweather-500{font-family:"Merriweather",serif;font-optical-sizing:auto;font-weight:500;font-style:normal;font-variation-settings:"wdth" 100}
 
 /* No hover effects and no border radius globally */
-button, input, select, textarea, .box{border-radius:0 !important}
+button, input, select, textarea, .box, audio{border-radius:0 !important}
 button:hover, a:hover{filter:none;opacity:1}
 
 * {
