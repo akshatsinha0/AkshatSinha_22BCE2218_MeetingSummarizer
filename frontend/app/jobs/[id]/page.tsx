@@ -66,16 +66,25 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
       const transcriptRes = await fetch(transcriptUrl);
       const transcript = await transcriptRes.text();
       
+      console.log('Sending reanalysis request with prompt:', customPrompt);
+      
       const res = await fetch(`${apiBase}/api/reanalyze`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({transcript, prompt: customPrompt})
       });
       
-      if(!res.ok) throw new Error('Reanalysis failed');
+      if(!res.ok) {
+        const errorText = await res.text();
+        console.error('Reanalysis error:', errorText);
+        throw new Error('Reanalysis failed: ' + errorText);
+      }
+      
       const result = await res.json();
+      console.log('Reanalysis result:', result);
       setCustomSummary(result);
     }catch(e:any){
+      console.error('Reanalysis exception:', e);
       alert('Error: ' + e.message);
     }finally{
       setReanalyzing(false);
@@ -203,9 +212,11 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
           {customSummary && (
             <div style={{marginBottom:'16px',padding:'12px',border:'2px solid #00ccff',background:'#0a0a0a'}}>
               <h3 className="bbh-sans-bartle-regular" style={{fontSize:'18px',marginBottom:'8px',color:'#00ccff'}}>Custom Analysis Result</h3>
-              <p className="merriweather-500" style={{padding:'12px',border:'1px solid #333',background:'#111'}}>{customSummary.summary}</p>
+              {customSummary.summary && (
+                <p className="merriweather-500" style={{padding:'12px',border:'1px solid #333',background:'#111',marginBottom:'12px'}}>{customSummary.summary}</p>
+              )}
               {customSummary.decisions && customSummary.decisions.length > 0 && (
-                <div style={{marginTop:'12px'}}>
+                <div style={{marginBottom:'12px'}}>
                   <h4 className="merriweather-500" style={{fontSize:'14px',marginBottom:'4px'}}>Decisions:</h4>
                   <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
                     {customSummary.decisions.map((d:string,i:number)=>(<li key={i}>{d}</li>))}
@@ -213,12 +224,15 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
                 </div>
               )}
               {customSummary.action_items && customSummary.action_items.length > 0 && (
-                <div style={{marginTop:'12px'}}>
+                <div style={{marginBottom:'12px'}}>
                   <h4 className="merriweather-500" style={{fontSize:'14px',marginBottom:'4px'}}>Action Items:</h4>
                   <ul className="merriweather-500" style={{paddingLeft:'24px'}}>
                     {customSummary.action_items.map((a:string,i:number)=>(<li key={i}>{a}</li>))}
                   </ul>
                 </div>
+              )}
+              {!customSummary.summary && (!customSummary.decisions || customSummary.decisions.length === 0) && (!customSummary.action_items || customSummary.action_items.length === 0) && (
+                <p className="merriweather-500" style={{color:'#666',fontStyle:'italic'}}>No results generated. Please try a different prompt.</p>
               )}
             </div>
           )}
