@@ -13,6 +13,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
   const [rename,setRename]=useState<Record<string,string>>({});
   const [revealedLines,setRevealedLines]=useState<Set<number>>(new Set());
   const [typewriterText,setTypewriterText]=useState<Record<number,string>>({});
+  const [animatingLines,setAnimatingLines]=useState<Set<number>>(new Set());
 
   useEffect(()=>{
     const t=setInterval(async()=>{
@@ -52,17 +53,22 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
   function revealLine(index:number,text:string){
     if(revealedLines.has(index))return;
     setRevealedLines(prev=>new Set(prev).add(index));
-    let currentText='';
+    setAnimatingLines(prev=>new Set(prev).add(index));
+    setTypewriterText(prev=>({...prev,[index]:''}));
     let charIndex=0;
     const interval=setInterval(()=>{
       if(charIndex<text.length){
-        currentText+=text[charIndex];
-        setTypewriterText(prev=>({...prev,[index]:currentText}));
+        setTypewriterText(prev=>({...prev,[index]:text.substring(0,charIndex+1)}));
         charIndex++;
       }else{
         clearInterval(interval);
+        setAnimatingLines(prev=>{
+          const newSet=new Set(prev);
+          newSet.delete(index);
+          return newSet;
+        });
       }
-    },10);
+    },20);
   }
 
   function revealAll(){
@@ -176,17 +182,21 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
             <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
               <button
                 onClick={()=>revealLine(i,s[1]||'')}
-                style={{background:'none',border:'none',cursor:'pointer',padding:'4px',flexShrink:0}}
+                style={{background:'none',border:'none',cursor:'pointer',padding:'4px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}
                 title="Reveal line"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <polygon points="4,2 12,8 4,14"/>
-                </svg>
+                {revealedLines.has(i) ? (
+                  <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#fff'}}></div>
+                ) : (
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <polygon points="4,2 12,8 4,14"/>
+                  </svg>
+                )}
               </button>
               <strong style={{minWidth:'120px',textAlign:'left',flexShrink:0}}>{rename[s[0]]||s[0]||''}</strong>
               <div style={{flex:1,borderBottom:'1px dotted #555',height:'1px'}}></div>
-              <span style={{textAlign:'right',flexShrink:0,minHeight:'20px'}}>
-                {revealedLines.has(i) ? (typewriterText[i]||s[1]||'') : ''}
+              <span style={{textAlign:'right',flexShrink:0,minHeight:'20px',overflow:'hidden',whiteSpace:'nowrap'}}>
+                {revealedLines.has(i) ? (typewriterText[i]||'') : ''}
               </span>
             </div>
           )) : 'Loading...'}
