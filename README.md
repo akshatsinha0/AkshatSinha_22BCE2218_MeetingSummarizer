@@ -15,22 +15,36 @@ Watch the demo: [Meeting Summarizer Demo](https://drive.google.com/file/d/1SmWLG
 
 **Objective:** Transcribe meeting audio and generate action-oriented summaries
 
-### ✅ Completed Features
+### Completed Features
 
-- [x] **Audio Input Support** - Accepts meeting audio files in multiple formats (MP3, WAV, etc.)
-- [x] **Text Transcript Generation** - Using OpenAI Whisper (faster-whisper implementation, large-v3-turbo model)
-- [x] **ASR API Integration** - Integrated with:
+![Audio Input](https://img.shields.io/badge/Audio_Input-Complete-success?style=flat-square)
+![Transcription](https://img.shields.io/badge/Transcription-Complete-success?style=flat-square)
+![ASR Integration](https://img.shields.io/badge/ASR_Integration-Complete-success?style=flat-square)
+![Speaker Diarization](https://img.shields.io/badge/Speaker_Diarization-Complete-success?style=flat-square)
+![Summary Generation](https://img.shields.io/badge/Summary_Generation-Complete-success?style=flat-square)
+![Key Decisions](https://img.shields.io/badge/Key_Decisions-Complete-success?style=flat-square)
+![Action Items](https://img.shields.io/badge/Action_Items-Complete-success?style=flat-square)
+![Backend Processing](https://img.shields.io/badge/Backend_Processing-Complete-success?style=flat-square)
+![Frontend UI](https://img.shields.io/badge/Frontend_UI-Complete-success?style=flat-square)
+![Async Jobs](https://img.shields.io/badge/Async_Jobs-Complete-success?style=flat-square)
+![Progress Tracking](https://img.shields.io/badge/Progress_Tracking-Complete-success?style=flat-square)
+![Export Options](https://img.shields.io/badge/Export_Options-Complete-success?style=flat-square)
+
+**Feature Details:**
+- **Audio Input Support** - Accepts meeting audio files in multiple formats (MP3, WAV, etc.)
+- **Text Transcript Generation** - Using OpenAI Whisper (faster-whisper implementation, large-v3-turbo model)
+- **ASR API Integration** - Integrated with:
   - Primary: OpenAI Whisper (local, offline, zero-cost)
   - Optional: Azure Speech, Deepgram (cloud fallback with budget controls)
-- [x] **Speaker Diarization** - Identifies and labels different speakers using pyannote
-- [x] **Summary Generation** - LLM-powered summaries highlighting key points
-- [x] **Key Decisions Extraction** - Automatically identifies and lists decisions made
-- [x] **Action Items Generation** - Extracts actionable tasks from meetings
-- [x] **Backend Data Processing** - FastAPI backend with SQLite storage for job management
-- [x] **Frontend UI** - Next.js web interface to upload audio and view results
-- [x] **Async Job Processing** - Background worker for handling long audio files
-- [x] **Progress Tracking** - Real-time status updates during processing
-- [x] **Export Options** - PDF and DOCX export for summaries
+- **Speaker Diarization** - Identifies and labels different speakers using pyannote
+- **Summary Generation** - LLM-powered summaries highlighting key points
+- **Key Decisions Extraction** - Automatically identifies and lists decisions made
+- **Action Items Generation** - Extracts actionable tasks from meetings
+- **Backend Data Processing** - FastAPI backend with SQLite storage for job management
+- **Frontend UI** - Next.js web interface to upload audio and view results
+- **Async Job Processing** - Background worker for handling long audio files
+- **Progress Tracking** - Real-time status updates during processing
+- **Export Options** - PDF and DOCX export for summaries
 
 ### Technical Implementation
 
