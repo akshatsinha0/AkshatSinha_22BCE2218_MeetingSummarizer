@@ -10,3 +10,5 @@ pyannote.audio==3.1.1
 librosa==0.11.0
 soundfile==0.13.1
 python-dotenv==1.0.1
+reportlab==4.2.5
+python-docx==1.1.2

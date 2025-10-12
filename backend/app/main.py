@@ -9,7 +9,7 @@ import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
-from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -58,6 +58,12 @@ class JobOut(BaseModel):
     updated_at:str
     transcript_path:Optional[str]=None
     summary_path:Optional[str]=None
+    segments_path:Optional[str]=None
+    model:Optional[str]=None
+    language:Optional[str]=None
+    diarization_enabled:Optional[bool]=None
+    progress:Optional[float]=None
+    stage:Optional[str]=None
     error:Optional[str]=None
 
 # ---- DB & Queue ----
@@ -71,9 +77,26 @@ CREATE TABLE IF NOT EXISTS jobs (
   input_path TEXT,
   transcript_path TEXT,
   summary_path TEXT,
+  segments_path TEXT,
+  model TEXT,
+  language TEXT,
+  diarization_enabled INTEGER,
+  progress REAL,
+  stage TEXT,
   error TEXT
 )
 """)
+# simple migration to add columns if missing
+try:
+    cols={r[1] for r in _conn.execute("PRAGMA table_info(jobs)").fetchall()}
+    for name,type_ in [
+        ("segments_path","TEXT"),("model","TEXT"),("language","TEXT"),("diarization_enabled","INTEGER"),("progress","REAL"),("stage","TEXT")
+    ]:
+        if name not in cols:
+            _conn.execute(f"ALTER TABLE jobs ADD COLUMN {name} {type_}")
+    _conn.commit()
+except Exception:
+    pass
 _conn.execute("""
 CREATE TABLE IF NOT EXISTS usage_budget (
   day TEXT PRIMARY KEY,
@@ -131,10 +154,10 @@ def _budget_add(duration_sec:float)->None:
         _conn.commit()
 
 # ASR using faster-whisper (local)
-def _transcribe(path:str):
+def _transcribe(path:str,language=None):
     from faster_whisper import WhisperModel
     model=WhisperModel(WHISPER_MODEL,device="cpu")
-    segments,info=model.transcribe(path,beam_size=1,language=None)
+    segments,info=model.transcribe(path,beam_size=1,language=language)
     out_segments=[]
     parts=[]
     for seg in segments:
@@ -183,14 +206,13 @@ def _transcribe_cloud(path:str):
 
 # Summarization via Ollama HTTP API
 
-def _summarize(transcript:str)->SummaryOut:
+def _summarize(transcript:str,*,model:Optional[str]=None,prompt_override:Optional[str]=None)->SummaryOut:
     import json,requests
-    prompt=(
+    prompt=(prompt_override or (
         "You are a meeting summarizer. Given the transcript, return a terse summary, a bullet list of key decisions, and actionable next steps.\n"
         "Return strict JSON with keys: summary, decisions (array), action_items (array).\n"
-        f"Transcript:\n{transcript}\n"
-    )
-    payload={"model":OLLAMA_MODEL,"prompt":prompt,"stream":False}
+    ))+f"\nTranscript:\n{transcript}\n"
+    payload={"model":(model or OLLAMA_MODEL),"prompt":prompt,"stream":False}
     try:
         r=requests.post(f"{OLLAMA_BASE_URL}/api/generate",json=payload,timeout=600)
         r.raise_for_status()
@@ -270,29 +292,108 @@ def _assign_speakers(asr_segments,diar_segments):
 def health():
     return {"status":"ok","diarization":"enabled" if HF_TOKEN else "disabled","model":OLLAMA_MODEL}
 
+# List available Ollama models
+@app.get("/api/models")
+def list_models():
+    import requests
+    try:
+        r=requests.get(f"{OLLAMA_BASE_URL}/api/tags",timeout=30)
+        r.raise_for_status()
+        data=r.json()
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=500,detail=f"Unable to list models: {e}")
+
+# Exports
+@app.get("/api/jobs/{job_id}/export/pdf")
+def export_pdf(job_id:str):
+    from reportlab.lib.pagesizes import LETTER
+    from reportlab.pdfgen import canvas
+    with _db_lock:
+        row=_conn.execute("SELECT summary_path,transcript_path FROM jobs WHERE id=?",(job_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404,detail="job not found")
+    # read summary json
+    try:
+        import requests
+        s=requests.get(f"http://127.0.0.1:8000{row[0]}").json()
+    except Exception:
+        s={}
+    pdf_file=os.path.join(STORAGE_DIR,"summaries",f"{job_id}.pdf")
+    c=canvas.Canvas(pdf_file,pagesize=LETTER)
+    y=750
+    def line(txt):
+        nonlocal y
+        c.drawString(40,y,txt[:100])
+        y-=18
+        if y<60:
+            c.showPage(); y=750
+    line("Meeting Summary")
+    for l in (s.get('summary','') or '').split('\n'):
+        line(l)
+    line("")
+    line("Decisions:")
+    for d in s.get('decisions',[]) or []:
+        line(f"- {d}")
+    line("")
+    line("Action Items:")
+    for a in s.get('action_items',[]) or []:
+        line(f"- {a}")
+    c.save()
+    return {"pdf":"/storage/summaries/%s.pdf"%job_id}
+
+@app.get("/api/jobs/{job_id}/export/docx")
+def export_docx(job_id:str):
+    from docx import Document
+    from docx.shared import Pt
+    import requests
+    with _db_lock:
+        row=_conn.execute("SELECT summary_path FROM jobs WHERE id=?",(job_id,)).fetchone()
+    if not row:
+        raise HTTPException(status_code=404,detail="job not found")
+    s=requests.get(f"http://127.0.0.1:8000{row[0]}").json()
+    doc=Document()
+    doc.add_heading('Meeting Summary', level=1)
+    doc.add_paragraph(s.get('summary','') or '')
+    doc.add_heading('Decisions', level=2)
+    for d in s.get('decisions',[]) or []:
+        doc.add_paragraph(d, style='List Bullet')
+    doc.add_heading('Action Items', level=2)
+    for a in s.get('action_items',[]) or []:
+        doc.add_paragraph(a, style='List Bullet')
+    docx_file=os.path.join(STORAGE_DIR,"summaries",f"{job_id}.docx")
+    doc.save(docx_file)
+    return {"docx":"/storage/summaries/%s.docx"%job_id}
+
 @app.post("/api/process",response_model=SummaryOut)
-async def process_meeting(file:UploadFile=File(...)):
+async def process_meeting(
+    file:UploadFile=File(...),
+    model:Optional[str]=Form(None),
+    language:Optional[str]=Form(None),
+    diarization_enabled:Optional[bool]=Form(True),
+    prompt:Optional[str]=Form(None)
+):
     suffix=os.path.splitext(file.filename or "audio")[1] or ".wav"
     with tempfile.NamedTemporaryFile(delete=False,suffix=suffix) as tmp:
         raw_path=tmp.name
         content=await file.read()
         tmp.write(content)
     wav_path=_ensure_wav(raw_path)
-    # try cloud only if allowed (partial cloud)
+    # try cloud only if allowed
     cloud_text=_transcribe_cloud(wav_path)
     if cloud_text:
         transcript=cloud_text
         segments=[{"start":0.0,"end":0.0,"text":cloud_text}]
     else:
-        transcript,segments=_transcribe(wav_path)
-    diar=_diarize(wav_path)
+        transcript,segments=_transcribe(wav_path,language=language)
+    diar=_diarize(wav_path) if diarization_enabled else []
     labeled=_assign_speakers(segments,diar)
     labeled_text=[]
     for spk,txt in labeled:
         if spk: labeled_text.append(f"{spk}: {txt}")
         else: labeled_text.append(txt)
     final_transcript="\n".join(labeled_text) if labeled_text else transcript
-    return _summarize(final_transcript)
+    return _summarize(final_transcript,model=model,prompt_override=prompt)
 
 # ---- Async Jobs API ----
 
@@ -311,43 +412,56 @@ def _db_upsert_job(job_id:str, **kwargs):
         _conn.commit()
 
 def _job_row_to_out(row)->JobOut:
-    return JobOut(job_id=row[0],status=row[1],created_at=row[2],updated_at=row[3],transcript_path=row[5],summary_path=row[6],error=row[7])
+    return JobOut(job_id=row[0],status=row[1],created_at=row[2],updated_at=row[3],transcript_path=row[5],summary_path=row[6],segments_path=row[7],model=row[8],language=row[9],diarization_enabled=bool(row[10]) if row[10] is not None else None,progress=row[11],stage=row[12],error=row[13])
 
-def _process_job(job_id:str, file_path:str):
+def _process_job(job_id:str, file_path:str, *, model_override:Optional[str]=None, language:Optional[str]=None, diarization_enabled:bool=True, prompt_override:Optional[str]=None):
     try:
-        _db_upsert_job(job_id,status='processing',input_path=file_path)
+        _db_upsert_job(job_id,status='processing',input_path=file_path,stage='preprocess',progress=0.05)
         wav_path=_ensure_wav(file_path)
+        _db_upsert_job(job_id,stage='transcribing',progress=0.25)
         cloud_text=_transcribe_cloud(wav_path)
         if cloud_text:
             transcript=cloud_text
             segments=[{"start":0.0,"end":0.0,"text":cloud_text}]
         else:
-            transcript,segments=_transcribe(wav_path)
-        diar=_diarize(wav_path)
+            transcript,segments=_transcribe(wav_path,language=language)
+        _db_upsert_job(job_id,stage='diarizing',progress=0.6)
+        diar=_diarize(wav_path) if diarization_enabled else []
         labeled=_assign_speakers(segments,diar)
         labeled_text=[(f"{spk}: {txt}" if spk else txt) for spk,txt in labeled]
         final_transcript="\n".join(labeled_text) if labeled_text else transcript
-        summary=_summarize(final_transcript)
+        _db_upsert_job(job_id,stage='summarizing',progress=0.8)
+        summary=_summarize(final_transcript,model=model_override,prompt_override=prompt_override)
         # persist
+        segfile=os.path.join(STORAGE_DIR,"segments",f"{job_id}.json")
+        os.makedirs(os.path.dirname(segfile),exist_ok=True)
+        open(segfile,'w',encoding='utf-8').write(json.dumps({"segments":labeled, "raw":segments},indent=2))
         tfile=os.path.join(STORAGE_DIR,"transcripts",f"{job_id}.txt")
         sfile=os.path.join(STORAGE_DIR,"summaries",f"{job_id}.json")
         open(tfile,'w',encoding='utf-8').write(final_transcript)
         open(sfile,'w',encoding='utf-8').write(summary.model_dump_json(indent=2))
         turl=f"/storage/transcripts/{job_id}.txt"
         surl=f"/storage/summaries/{job_id}.json"
-        _db_upsert_job(job_id,status='done',transcript_path=turl,summary_path=surl)
+        segurl=f"/storage/segments/{job_id}.json"
+        _db_upsert_job(job_id,status='done',transcript_path=turl,summary_path=surl,segments_path=segurl,model=model_override or OLLAMA_MODEL,language=language,diarization_enabled=1 if diarization_enabled else 0,stage='done',progress=1.0)
     except Exception as e:
         _db_upsert_job(job_id,status='error',error=str(e))
 
 @app.post("/api/jobs",response_model=JobOut)
-async def create_job(file:UploadFile=File(...)):
+async def create_job(
+    file:UploadFile=File(...),
+    model:Optional[str]=Form(None),
+    language:Optional[str]=Form(None),
+    diarization_enabled:Optional[bool]=Form(True),
+    prompt:Optional[str]=Form(None)
+):
     job_id=str(uuid.uuid4())
     suffix=os.path.splitext(file.filename or "audio")[1] or ".wav"
     audio_path=os.path.join(STORAGE_DIR,"audio",f"{job_id}{suffix}")
     with open(audio_path,'wb') as f:
         f.write(await file.read())
-    _db_upsert_job(job_id,status='queued',input_path=audio_path)
-    _executor.submit(_process_job,job_id,audio_path)
+    _db_upsert_job(job_id,status='queued',input_path=audio_path,model=model or OLLAMA_MODEL,language=language,diarization_enabled=1 if diarization_enabled else 0,progress=0.0,stage='queued')
+    _executor.submit(_process_job,job_id,audio_path,model_override=model,language=language,diarization_enabled=bool(diarization_enabled),prompt_override=prompt)
     with _db_lock:
         row=_conn.execute("SELECT * FROM jobs WHERE id=?",(job_id,)).fetchone()
     return _job_row_to_out(row)
