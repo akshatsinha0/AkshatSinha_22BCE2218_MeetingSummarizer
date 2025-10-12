@@ -10,10 +10,12 @@ Setup (Windows / PowerShell)
    - python 3.11 venv at `.venv` is already created
    - To install deps from file: `.venv\Scripts\pip install -r backend/requirements.txt`
 3. Copy `.env.example` to `.env` (root) and edit FFMPEG_BIN/OLLAMA_MODEL if needed.
-4. Start backend:
-   - `./backend/run_dev.ps1`
-5. Start frontend (after we scaffold it):
-   - `cd frontend && npm run dev`
+4. Get HF token from https://huggingface.co/settings/tokens and add to `.env` as `HF_TOKEN` (required for speaker diarization).
+5. Start both backend and frontend:
+   - `.\dev.ps1` (from root project directory)
+   - Or start separately:
+     - Backend: `./backend/run_dev.ps1`
+     - Frontend: `cd frontend && npm run dev`
 
 API quick test (once backend is running)
 - Synchronous (small files): POST http://localhost:8000/api/process with form-data `file=@path/to/audio.mp3`
