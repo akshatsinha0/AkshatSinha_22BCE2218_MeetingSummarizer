@@ -1,11 +1,11 @@
 # Meeting Summarizer (local, free stack)
 
 - Backend: FastAPI + faster-whisper (offline ASR) + Ollama (local LLM)
-- Frontend: Next.js (App Router). No hover effects, no border radius. Fonts injected per spec.
+- Frontend: Next.js (App Router).
 - Storage: local filesystem + SQLite for jobs, with a simple background worker.
 
 Setup (Windows / PowerShell)
-1. Ensure Node, Python 3.11, Git, FFmpeg, Ollama are installed. We already installed most during bootstrap.
+1. Ensure Node, Python 3.11, Git, FFmpeg, Ollama are installed. I already installed most during bootstrap.
 2. Create venv and install deps:
    - python 3.11 venv at `.venv` is already created
    - To install deps from file: `.venv\Scripts\pip install -r backend/requirements.txt`
