@@ -56,11 +56,13 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
       {data?.input_path && (
         <div style={{marginTop:'16px',padding:'12px',border:'1px solid #333',background:'#0a0a0a'}}>
           <h3 className="merriweather-500" style={{fontSize:'16px',marginBottom:'8px'}}>Audio</h3>
-          <audio 
-            controls 
-            src={data.input_path.startsWith('http') ? data.input_path : `${apiBase}${data.input_path}`}
-            style={{width:'100%',maxWidth:'600px'}}
-          />
+          <div style={{border:'1px solid #444',padding:'4px',background:'#111'}}>
+            <audio 
+              controls 
+              src={data.input_path.startsWith('http') ? data.input_path : `${apiBase}${data.input_path}`}
+              style={{width:'100%',display:'block'}}
+            />
+          </div>
         </div>
       )}
 
