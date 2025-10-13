@@ -248,6 +248,13 @@ export default function Home() {
           >
             📅 Calendar
           </a>
+          <a
+            href="/settings"
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
+            title="Settings"
+          >
+            ⚙️
+          </a>
         </div>
       </div>
 
