@@ -17,6 +17,15 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
   const [customPrompt,setCustomPrompt]=useState('');
   const [customSummary,setCustomSummary]=useState<any>(null);
   const [reanalyzing,setReanalyzing]=useState(false);
+  const [isEditing,setIsEditing]=useState(false);
+  const [editedTranscript,setEditedTranscript]=useState('');
+  const [bookmarks,setBookmarks]=useState<any[]>([]);
+  const [newBookmarkLabel,setNewBookmarkLabel]=useState('');
+  const [showBookmarkInput,setShowBookmarkInput]=useState(false);
+  const [currentAudioTime,setCurrentAudioTime]=useState(0);
+  const audioRef = useRef<HTMLAudioElement>(null);
+  const [playbackSpeed,setPlaybackSpeed]=useState(1.0);
+  const [complianceIssues,setComplianceIssues]=useState<any>(null);
 
   const promptSuggestions = [
     "Extract only the key technical decisions and their rationale",
@@ -49,11 +58,103 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
               setSegments(sg.segments||[]);
             }catch(e){ console.error('Failed to load segments:', e); } 
           }
+          // Load bookmarks
+          loadBookmarks();
+          // Load compliance check
+          loadComplianceCheck();
         }
       }catch(e:any){ setErr(String(e)); }
     },1000);
     return ()=> clearInterval(t);
   },[id]);
+
+  async function loadBookmarks(){
+    try{
+      const r = await fetch(`${apiBase}/api/jobs/${id}/bookmarks`);
+      if(r.ok) setBookmarks(await r.json());
+    }catch(e){}
+  }
+
+  async function loadComplianceCheck(){
+    try{
+      const r = await fetch(`${apiBase}/api/jobs/${id}/compliance-check`);
+      if(r.ok) setComplianceIssues(await r.json());
+    }catch(e){}
+  }
+
+  async function addBookmark(){
+    if(!newBookmarkLabel.trim()) return;
+    try{
+      await fetch(`${apiBase}/api/jobs/${id}/bookmarks`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({timestamp: currentAudioTime, label: newBookmarkLabel})
+      });
+      setNewBookmarkLabel('');
+      setShowBookmarkInput(false);
+      loadBookmarks();
+    }catch(e:any){
+      alert('Error adding bookmark: ' + e.message);
+    }
+  }
+
+  async function deleteBookmark(bookmarkId: string){
+    try{
+      await fetch(`${apiBase}/api/jobs/${id}/bookmarks/${bookmarkId}`, {method: 'DELETE'});
+      loadBookmarks();
+    }catch(e:any){
+      alert('Error deleting bookmark: ' + e.message);
+    }
+  }
+
+  function jumpToBookmark(timestamp: number){
+    if(audioRef.current){
+      audioRef.current.currentTime = timestamp;
+      audioRef.current.play();
+    }
+  }
+
+  async function startEditingTranscript(){
+    if(!data?.transcript_path) return;
+    try{
+      const transcriptUrl = data.transcript_path.startsWith('http') ? data.transcript_path : `${apiBase}${data.transcript_path}`;
+      const r = await fetch(transcriptUrl);
+      const text = await r.text();
+      setEditedTranscript(text);
+      setIsEditing(true);
+    }catch(e:any){
+      alert('Error loading transcript: ' + e.message);
+    }
+  }
+
+  async function saveTranscriptEdit(){
+    try{
+      await fetch(`${apiBase}/api/jobs/${id}/edit-transcript`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({job_id: id, edited_transcript: editedTranscript})
+      });
+      alert('Transcript saved! Regenerating summary...');
+      
+      // Rerun summary
+      const r = await fetch(`${apiBase}/api/jobs/${id}/rerun-summary`, {method: 'POST'});
+      if(r.ok){
+        const result = await r.json();
+        setSummary(result.summary);
+        setIsEditing(false);
+        alert('Summary regenerated successfully!');
+      }
+    }catch(e:any){
+      alert('Error saving transcript: ' + e.message);
+    }
+  }
+
+  function changePlaybackSpeed(speed: number){
+    setPlaybackSpeed(speed);
+    if(audioRef.current){
+      audioRef.current.playbackRate = speed;
+    }
+  }
 
   async function exportPdf(){ await fetch(`${apiBase}/api/jobs/${id}/export/pdf`).then(r=>r.json()).then(j=>window.open(`${apiBase}${j.pdf}`,'_blank')); }
   async function exportDocx(){ await fetch(`${apiBase}/api/jobs/${id}/export/docx`).then(r=>r.json()).then(j=>window.open(`${apiBase}${j.docx}`,'_blank')); }
@@ -165,14 +266,86 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
 
       {data?.input_path && (
         <div style={{marginTop:'16px',padding:'12px',border:'1px solid #333',background:'#0a0a0a'}}>
-          <h3 className="merriweather-500" style={{fontSize:'16px',marginBottom:'8px'}}>Audio</h3>
+          <h3 className="merriweather-500" style={{fontSize:'16px',marginBottom:'8px'}}>Audio Controls</h3>
           <div style={{border:'1px solid #444',padding:'4px',background:'#111'}}>
             <audio 
+              ref={audioRef}
               controls 
               src={data.input_path.startsWith('http') ? data.input_path : `${apiBase}${data.input_path}`}
               style={{width:'100%',display:'block'}}
+              onTimeUpdate={(e) => setCurrentAudioTime(e.currentTarget.currentTime)}
             />
           </div>
+          <div style={{marginTop:'8px',display:'flex',gap:'8px',alignItems:'center'}}>
+            <span className="merriweather-500" style={{fontSize:'14px'}}>Speed:</span>
+            {[0.5, 0.75, 1.0, 1.25, 1.5, 2.0].map(speed => (
+              <button
+                key={speed}
+                onClick={() => changePlaybackSpeed(speed)}
+                style={{
+                  padding:'4px 8px',
+                  border:'1px solid #444',
+                  background: playbackSpeed === speed ? '#555' : '#111',
+                  color:'#fff',
+                  cursor:'pointer',
+                  fontSize:'12px'
+                }}
+              >
+                {speed}x
+              </button>
+            ))}
+            <button
+              onClick={() => setShowBookmarkInput(true)}
+              style={{padding:'4px 12px',border:'1px solid #444',background:'#111',color:'#fff',cursor:'pointer',marginLeft:'auto'}}
+            >
+              📌 Add Bookmark
+            </button>
+          </div>
+          
+          {showBookmarkInput && (
+            <div style={{marginTop:'8px',padding:'8px',border:'1px solid #444',background:'#111'}}>
+              <input
+                type="text"
+                value={newBookmarkLabel}
+                onChange={e => setNewBookmarkLabel(e.target.value)}
+                placeholder="Bookmark label..."
+                style={{width:'100%',padding:'8px',background:'#222',border:'1px solid #444',color:'#fff',marginBottom:'8px'}}
+              />
+              <div style={{display:'flex',gap:'8px'}}>
+                <button onClick={addBookmark} style={{padding:'6px 12px',border:'1px solid #444',background:'#111',color:'#fff',cursor:'pointer'}}>
+                  Save at {currentAudioTime.toFixed(1)}s
+                </button>
+                <button onClick={() => setShowBookmarkInput(false)} style={{padding:'6px 12px',border:'1px solid #444',background:'#111',color:'#fff',cursor:'pointer'}}>
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+          
+          {bookmarks.length > 0 && (
+            <div style={{marginTop:'8px'}}>
+              <h4 className="merriweather-500" style={{fontSize:'14px',marginBottom:'4px'}}>Bookmarks:</h4>
+              <div style={{display:'flex',flexDirection:'column',gap:'4px'}}>
+                {bookmarks.map(bm => (
+                  <div key={bm.id} style={{padding:'6px',border:'1px solid #444',background:'#111',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                    <button
+                      onClick={() => jumpToBookmark(bm.timestamp)}
+                      style={{background:'none',border:'none',color:'#4a9eff',cursor:'pointer',textAlign:'left',flex:1}}
+                      className="merriweather-500"
+                    >
+                      📌 {bm.label} ({bm.timestamp.toFixed(1)}s)
+                    </button>
+                    <button
+                      onClick={() => deleteBookmark(bm.id)}
+                      style={{padding:'2px 8px',border:'1px solid #444',background:'#a00',color:'#fff',cursor:'pointer',fontSize:'12px'}}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -270,12 +443,66 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
         </section>
       )}
 
+      {complianceIssues && complianceIssues.issues.length > 0 && (
+        <div style={{marginTop:'16px',padding:'12px',border:'2px solid #f59e0b',background:'#0a0a0a'}}>
+          <h3 className="bbh-sans-bartle-regular" style={{fontSize:'18px',marginBottom:'8px',color:'#f59e0b'}}>
+            ⚠️ Compliance Issues Detected
+          </h3>
+          <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
+            {complianceIssues.issues.map((issue: any, i: number) => (
+              <div key={i} style={{padding:'8px',border:'1px solid #444',background:'#111'}}>
+                <div className="merriweather-500" style={{fontSize:'14px',fontWeight:'bold',marginBottom:'4px'}}>
+                  {issue.type} - {issue.severity.toUpperCase()}
+                </div>
+                <div className="merriweather-500" style={{fontSize:'13px',color:'#ccc'}}>
+                  {issue.description}
+                </div>
+                {issue.examples && issue.examples.length > 0 && (
+                  <div className="merriweather-500" style={{fontSize:'12px',color:'#888',marginTop:'4px'}}>
+                    Examples: {issue.examples.join(', ')}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <section style={{marginTop:'16px'}}>
         <div style={{display:'flex',gap:'8px',alignItems:'center',justifyContent:'space-between'}}>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
             <h2 className="bbh-sans-bartle-regular" style={{fontSize:'20px'}}>Transcript</h2>
-            <input placeholder="Search..." value={filter} onChange={e=>setFilter(e.target.value)} />
+            {!isEditing && <input placeholder="Search..." value={filter} onChange={e=>setFilter(e.target.value)} />}
           </div>
+          <div style={{display:'flex',gap:'8px'}}>
+            {!isEditing ? (
+              <button
+                onClick={startEditingTranscript}
+                disabled={!data?.transcript_path}
+                style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer'}}
+              >
+                ✏️ Edit Transcript
+              </button>
+            ) : (
+              <>
+                <button
+                  onClick={saveTranscriptEdit}
+                  style={{padding:'6px 12px',border:'1px solid #444',background:'#0a0',color:'#fff',cursor:'pointer'}}
+                >
+                  💾 Save & Regenerate Summary
+                </button>
+                <button
+                  onClick={() => setIsEditing(false)}
+                  style={{padding:'6px 12px',border:'1px solid #444',background:'#a00',color:'#fff',cursor:'pointer'}}
+                >
+                  Cancel
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        <div style={{display:'flex',gap:'8px',alignItems:'center',justifyContent:'space-between',marginTop:'8px'}}>
+          <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
           <button 
             onClick={toggleRevealAll}
             style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}}
@@ -298,14 +525,34 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
             )}
           </button>
         </div>
-        {speakers.length>0 && (
+        {speakers.length>0 && !isEditing && (
           <div className="merriweather-500" style={{display:'flex',gap:'12px',flexWrap:'wrap',marginTop:'8px'}}>
             {speakers.map(spk=> (
               <label key={spk}>Rename {spk}: <input value={rename[spk]||''} onChange={e=>setRename({...rename,[spk]:e.target.value})} /></label>
             ))}
           </div>
         )}
-        <div className="merriweather-500" style={{border:'1px solid #333',padding:'8px',marginTop:'8px'}}>
+        
+        {isEditing ? (
+          <div style={{marginTop:'8px'}}>
+            <textarea
+              value={editedTranscript}
+              onChange={e => setEditedTranscript(e.target.value)}
+              style={{
+                width:'100%',
+                minHeight:'400px',
+                padding:'12px',
+                border:'1px solid #444',
+                background:'#111',
+                color:'#fff',
+                fontFamily:'monospace',
+                fontSize:'14px',
+                resize:'vertical'
+              }}
+            />
+          </div>
+        ) : (
+          <div className="merriweather-500" style={{border:'1px solid #333',padding:'8px',marginTop:'8px'}}>
           {filtered.length>0 ? filtered.map((s:any,i:number)=>(
             <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
               <button
@@ -329,6 +576,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
             </div>
           )) : 'Loading...'}
         </div>
+        )}
       </section>
       </div>
     </main>
