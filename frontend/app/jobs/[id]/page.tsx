@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, use } from 'react';
+import { useEffect, useState, use, useRef } from 'react';
 
 export default function JobView({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -503,28 +503,30 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
         </div>
         <div style={{display:'flex',gap:'8px',alignItems:'center',justifyContent:'space-between',marginTop:'8px'}}>
           <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-          <button 
-            onClick={toggleRevealAll}
-            style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}}
-            title={revealedLines.size === filtered.length ? "Hide all lines" : "Reveal all lines"}
-          >
-            {revealedLines.size === filtered.length ? (
-              <>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M1 8h14"/>
-                </svg>
-                Hide All
-              </>
-            ) : (
-              <>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M1 8h14M8 1v14"/>
-                </svg>
-                Show All
-              </>
-            )}
-          </button>
+            <button 
+              onClick={toggleRevealAll}
+              style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer',display:'flex',alignItems:'center',gap:'4px'}}
+              title={revealedLines.size === filtered.length ? "Hide all lines" : "Reveal all lines"}
+            >
+              {revealedLines.size === filtered.length ? (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 8h14"/>
+                  </svg>
+                  Hide All
+                </>
+              ) : (
+                <>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M1 8h14M8 1v14"/>
+                  </svg>
+                  Show All
+                </>
+              )}
+            </button>
+          </div>
         </div>
+        
         {speakers.length>0 && !isEditing && (
           <div className="merriweather-500" style={{display:'flex',gap:'12px',flexWrap:'wrap',marginTop:'8px'}}>
             {speakers.map(spk=> (
@@ -553,29 +555,29 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
           </div>
         ) : (
           <div className="merriweather-500" style={{border:'1px solid #333',padding:'8px',marginTop:'8px'}}>
-          {filtered.length>0 ? filtered.map((s:any,i:number)=>(
-            <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
-              <button
-                onClick={()=>revealLine(i,s[1]||'')}
-                style={{background:'none',border:'none',cursor:'pointer',padding:'4px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}
-                title="Reveal line"
-              >
-                {revealedLines.has(i) ? (
-                  <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#fff'}}></div>
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polygon points="4,2 12,8 4,14"/>
-                  </svg>
-                )}
-              </button>
-              <strong style={{minWidth:'120px',textAlign:'left',flexShrink:0}}>{rename[s[0]]||s[0]||''}</strong>
-              <div style={{flex:1,borderBottom:'1px dotted #555',height:'1px'}}></div>
-              <span style={{textAlign:'right',flexShrink:0,minHeight:'20px',overflow:'hidden',whiteSpace:'nowrap'}}>
-                {revealedLines.has(i) ? (typewriterText[i]||'') : ''}
-              </span>
-            </div>
-          )) : 'Loading...'}
-        </div>
+            {filtered.length>0 ? filtered.map((s:any,i:number)=>(
+              <div key={i} style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px'}}>
+                <button
+                  onClick={()=>revealLine(i,s[1]||'')}
+                  style={{background:'none',border:'none',cursor:'pointer',padding:'4px',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}}
+                  title="Reveal line"
+                >
+                  {revealedLines.has(i) ? (
+                    <div style={{width:'8px',height:'8px',borderRadius:'50%',background:'#fff'}}></div>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polygon points="4,2 12,8 4,14"/>
+                    </svg>
+                  )}
+                </button>
+                <strong style={{minWidth:'120px',textAlign:'left',flexShrink:0}}>{rename[s[0]]||s[0]||''}</strong>
+                <div style={{flex:1,borderBottom:'1px dotted #555',height:'1px'}}></div>
+                <span style={{textAlign:'right',flexShrink:0,minHeight:'20px',overflow:'hidden',whiteSpace:'nowrap'}}>
+                  {revealedLines.has(i) ? (typewriterText[i]||'') : ''}
+                </span>
+              </div>
+            )) : 'Loading...'}
+          </div>
         )}
       </section>
       </div>
