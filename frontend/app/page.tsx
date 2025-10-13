@@ -214,6 +214,13 @@ export default function Home() {
           >
             🎤 Live
           </a>
+          <a
+            href="/calendar"
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
+            title="Calendar integration"
+          >
+            📅 Calendar
+          </a>
         </div>
       </div>
 
