@@ -34,6 +34,7 @@ export default function Home() {
   const [theme, setTheme] = useState<'dark'|'light'>('dark');
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [selectedFiles, setSelectedFiles] = useState<FileList | null>(null);
+  const [fontSize, setFontSize] = useState<'normal'|'large'|'xlarge'>('normal');
 
   useEffect(()=>{
     (async()=>{try{const r=await fetch(`${apiBase}/api/models`);const j=await r.json();setModels((j.models||[]).map((m:any)=>m.name));}catch{}})();
@@ -43,6 +44,11 @@ export default function Home() {
     setTheme(savedTheme);
     document.body.style.background = savedTheme === 'dark' ? '#000' : '#fff';
     document.body.style.color = savedTheme === 'dark' ? '#fff' : '#000';
+    
+    // Load font size preference
+    const savedFontSize = localStorage.getItem('fontSize') as 'normal'|'large'|'xlarge' || 'normal';
+    setFontSize(savedFontSize);
+    applyFontSize(savedFontSize);
   },[]);
 
   // Keyboard shortcuts
@@ -80,6 +86,17 @@ export default function Home() {
     localStorage.setItem('theme', newTheme);
     document.body.style.background = newTheme === 'dark' ? '#000' : '#fff';
     document.body.style.color = newTheme === 'dark' ? '#fff' : '#000';
+  }
+
+  function applyFontSize(size: 'normal'|'large'|'xlarge') {
+    const multiplier = size === 'normal' ? 1 : size === 'large' ? 1.2 : 1.4;
+    document.documentElement.style.fontSize = `${16 * multiplier}px`;
+  }
+
+  function changeFontSize(size: 'normal'|'large'|'xlarge') {
+    setFontSize(size);
+    localStorage.setItem('fontSize', size);
+    applyFontSize(size);
   }
 
   const colors = theme === 'dark' ? {
@@ -200,6 +217,16 @@ export default function Home() {
           >
             {theme === 'dark' ? '☀️' : '🌙'}
           </button>
+          <select
+            value={fontSize}
+            onChange={e => changeFontSize(e.target.value as 'normal'|'large'|'xlarge')}
+            style={{padding:'8px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
+            title="Font size"
+          >
+            <option value="normal">A</option>
+            <option value="large">A+</option>
+            <option value="xlarge">A++</option>
+          </select>
           <button
             onClick={() => setShowShortcuts(true)}
             style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
