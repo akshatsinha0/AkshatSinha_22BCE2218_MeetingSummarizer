@@ -7,10 +7,12 @@ import threading
 import sqlite3
 import datetime as dt
 import warnings
+import asyncio
+import base64
 from concurrent.futures import ThreadPoolExecutor
 from typing import List, Optional
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, Form
+from fastapi import FastAPI, File, UploadFile, HTTPException, Form, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -117,10 +119,51 @@ CREATE TABLE IF NOT EXISTS usage_budget (
   minutes_used REAL NOT NULL
 )
 """)
+_conn.execute("""
+CREATE TABLE IF NOT EXISTS transcript_edits (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL,
+  edited_transcript TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(job_id) REFERENCES jobs(id)
+)
+""")
+_conn.execute("""
+CREATE TABLE IF NOT EXISTS bookmarks (
+  id TEXT PRIMARY KEY,
+  job_id TEXT NOT NULL,
+  timestamp REAL NOT NULL,
+  label TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(job_id) REFERENCES jobs(id)
+)
+""")
 _conn.commit()
 _db_lock=threading.Lock()
 
 _executor=ThreadPoolExecutor(max_workers=2)
+
+# WebSocket connection manager for real-time transcription
+class ConnectionManager:
+    def __init__(self):
+        self.active_connections: dict[str, WebSocket] = {}
+    
+    async def connect(self, session_id: str, websocket: WebSocket):
+        await websocket.accept()
+        self.active_connections[session_id] = websocket
+    
+    def disconnect(self, session_id: str):
+        if session_id in self.active_connections:
+            del self.active_connections[session_id]
+    
+    async def send_message(self, session_id: str, message: dict):
+        if session_id in self.active_connections:
+            try:
+                await self.active_connections[session_id].send_json(message)
+            except Exception:
+                self.disconnect(session_id)
+
+ws_manager = ConnectionManager()
 
 # ---- Utilities ----
 
@@ -552,3 +595,345 @@ async def list_jobs(limit:int=20):
 @app.post("/api/reanalyze")
 async def reanalyze_transcript(req:ReanalyzeRequest):
     return _summarize(req.transcript,prompt_override=req.prompt)
+
+# Real-time transcription WebSocket endpoint
+@app.websocket("/ws/transcribe/{session_id}")
+async def websocket_transcribe(websocket: WebSocket, session_id: str):
+    await ws_manager.connect(session_id, websocket)
+    audio_buffer = b""
+    temp_files = []
+    
+    try:
+        from faster_whisper import WhisperModel
+        model = WhisperModel(WHISPER_MODEL, device="cpu")
+        
+        await ws_manager.send_message(session_id, {"type": "status", "message": "Connected. Start streaming audio..."})
+        
+        while True:
+            data = await websocket.receive()
+            
+            if "text" in data:
+                msg = json.loads(data["text"])
+                if msg.get("type") == "audio_chunk":
+                    # Decode base64 audio chunk
+                    chunk = base64.b64decode(msg["data"])
+                    audio_buffer += chunk
+                    
+                    # Process when buffer reaches ~3 seconds (48000 samples * 2 bytes)
+                    if len(audio_buffer) >= 96000:
+                        # Save to temp file
+                        temp_path = os.path.join(tempfile.gettempdir(), f"{session_id}_{uuid.uuid4()}.wav")
+                        temp_files.append(temp_path)
+                        
+                        with open(temp_path, "wb") as f:
+                            f.write(audio_buffer)
+                        
+                        # Transcribe chunk
+                        try:
+                            segments, _ = model.transcribe(temp_path, beam_size=1)
+                            text_parts = []
+                            for seg in segments:
+                                text_parts.append(seg.text)
+                            
+                            if text_parts:
+                                await ws_manager.send_message(session_id, {
+                                    "type": "transcript",
+                                    "text": " ".join(text_parts).strip(),
+                                    "timestamp": dt.datetime.utcnow().isoformat()
+                                })
+                        except Exception as e:
+                            await ws_manager.send_message(session_id, {
+                                "type": "error",
+                                "message": f"Transcription error: {str(e)}"
+                            })
+                        
+                        # Clear buffer
+                        audio_buffer = b""
+                
+                elif msg.get("type") == "end":
+                    await ws_manager.send_message(session_id, {"type": "status", "message": "Session ended"})
+                    break
+            
+            elif "bytes" in data:
+                # Direct binary audio data
+                audio_buffer += data["bytes"]
+                
+                if len(audio_buffer) >= 96000:
+                    temp_path = os.path.join(tempfile.gettempdir(), f"{session_id}_{uuid.uuid4()}.wav")
+                    temp_files.append(temp_path)
+                    
+                    with open(temp_path, "wb") as f:
+                        f.write(audio_buffer)
+                    
+                    try:
+                        segments, _ = model.transcribe(temp_path, beam_size=1)
+                        text_parts = [seg.text for seg in segments]
+                        
+                        if text_parts:
+                            await ws_manager.send_message(session_id, {
+                                "type": "transcript",
+                                "text": " ".join(text_parts).strip(),
+                                "timestamp": dt.datetime.utcnow().isoformat()
+                            })
+                    except Exception as e:
+                        await ws_manager.send_message(session_id, {
+                            "type": "error",
+                            "message": f"Transcription error: {str(e)}"
+                        })
+                    
+                    audio_buffer = b""
+    
+    except WebSocketDisconnect:
+        ws_manager.disconnect(session_id)
+    except Exception as e:
+        await ws_manager.send_message(session_id, {"type": "error", "message": str(e)})
+        ws_manager.disconnect(session_id)
+    finally:
+        # Cleanup temp files
+        for temp_file in temp_files:
+            try:
+                if os.path.exists(temp_file):
+                    os.remove(temp_file)
+            except Exception:
+                pass
+
+# Transcript editing endpoints
+class TranscriptEditRequest(BaseModel):
+    job_id: str
+    edited_transcript: str
+
+@app.post("/api/jobs/{job_id}/edit-transcript")
+async def edit_transcript(job_id: str, req: TranscriptEditRequest):
+    edit_id = str(uuid.uuid4())
+    now = dt.datetime.utcnow().isoformat()
+    
+    with _db_lock:
+        # Save edit history
+        _conn.execute(
+            "INSERT INTO transcript_edits(id, job_id, edited_transcript, created_at) VALUES(?,?,?,?)",
+            (edit_id, job_id, req.edited_transcript, now)
+        )
+        _conn.commit()
+        
+        # Update transcript file
+        row = _conn.execute("SELECT transcript_path FROM jobs WHERE id=?", (job_id,)).fetchone()
+        if row and row[0]:
+            transcript_file = os.path.join(STORAGE_DIR, "transcripts", f"{job_id}.txt")
+            with open(transcript_file, 'w', encoding='utf-8') as f:
+                f.write(req.edited_transcript)
+    
+    return {"status": "success", "edit_id": edit_id}
+
+@app.get("/api/jobs/{job_id}/edit-history")
+async def get_edit_history(job_id: str):
+    with _db_lock:
+        rows = _conn.execute(
+            "SELECT id, created_at FROM transcript_edits WHERE job_id=? ORDER BY created_at DESC",
+            (job_id,)
+        ).fetchall()
+    
+    return [{"edit_id": r[0], "created_at": r[1]} for r in rows]
+
+@app.post("/api/jobs/{job_id}/rerun-summary")
+async def rerun_summary_after_edit(job_id: str):
+    with _db_lock:
+        row = _conn.execute("SELECT transcript_path FROM jobs WHERE id=?", (job_id,)).fetchone()
+    
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Read edited transcript
+    transcript_file = os.path.join(STORAGE_DIR, "transcripts", f"{job_id}.txt")
+    with open(transcript_file, 'r', encoding='utf-8') as f:
+        transcript = f.read()
+    
+    # Re-run summarization
+    summary = _summarize(transcript)
+    
+    # Save new summary
+    sfile = os.path.join(STORAGE_DIR, "summaries", f"{job_id}.json")
+    with open(sfile, 'w', encoding='utf-8') as f:
+        f.write(summary.model_dump_json(indent=2))
+    
+    return {"status": "success", "summary": summary}
+
+# Bookmarks endpoints
+class BookmarkRequest(BaseModel):
+    timestamp: float
+    label: str
+
+@app.post("/api/jobs/{job_id}/bookmarks")
+async def add_bookmark(job_id: str, req: BookmarkRequest):
+    bookmark_id = str(uuid.uuid4())
+    now = dt.datetime.utcnow().isoformat()
+    
+    with _db_lock:
+        _conn.execute(
+            "INSERT INTO bookmarks(id, job_id, timestamp, label, created_at) VALUES(?,?,?,?,?)",
+            (bookmark_id, job_id, req.timestamp, req.label, now)
+        )
+        _conn.commit()
+    
+    return {"status": "success", "bookmark_id": bookmark_id}
+
+@app.get("/api/jobs/{job_id}/bookmarks")
+async def get_bookmarks(job_id: str):
+    with _db_lock:
+        rows = _conn.execute(
+            "SELECT id, timestamp, label, created_at FROM bookmarks WHERE job_id=? ORDER BY timestamp",
+            (job_id,)
+        ).fetchall()
+    
+    return [{"id": r[0], "timestamp": r[1], "label": r[2], "created_at": r[3]} for r in rows]
+
+@app.delete("/api/jobs/{job_id}/bookmarks/{bookmark_id}")
+async def delete_bookmark(job_id: str, bookmark_id: str):
+    with _db_lock:
+        _conn.execute("DELETE FROM bookmarks WHERE id=? AND job_id=?", (bookmark_id, job_id))
+        _conn.commit()
+    
+    return {"status": "success"}
+
+# Batch processing endpoint
+@app.post("/api/jobs/batch")
+async def create_batch_jobs(
+    files: List[UploadFile] = File(...),
+    model: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+    diarization_enabled: Optional[bool] = Form(True)
+):
+    job_ids = []
+    
+    for file in files:
+        job_id = str(uuid.uuid4())
+        original_filename = file.filename or "audio"
+        suffix = os.path.splitext(original_filename)[1] or ".wav"
+        audio_path = os.path.join(STORAGE_DIR, "audio", f"{job_id}{suffix}")
+        
+        with open(audio_path, 'wb') as f:
+            f.write(await file.read())
+        
+        _db_upsert_job(
+            job_id,
+            status='queued',
+            input_path=audio_path,
+            model=model or OLLAMA_MODEL,
+            language=language,
+            diarization_enabled=1 if diarization_enabled else 0,
+            progress=0.0,
+            stage='queued',
+            filename=original_filename
+        )
+        
+        _executor.submit(
+            _process_job,
+            job_id,
+            audio_path,
+            model_override=model,
+            language=language,
+            diarization_enabled=bool(diarization_enabled),
+            prompt_override=None
+        )
+        
+        job_ids.append(job_id)
+    
+    return {"status": "success", "job_ids": job_ids, "count": len(job_ids)}
+
+# Bulk export endpoint
+@app.post("/api/jobs/bulk-export")
+async def bulk_export(job_ids: List[str], format: str = "pdf"):
+    results = []
+    
+    for job_id in job_ids:
+        try:
+            if format == "pdf":
+                result = await export_pdf(job_id)
+            elif format == "docx":
+                result = await export_docx(job_id)
+            else:
+                continue
+            
+            results.append({"job_id": job_id, "url": result.get(format)})
+        except Exception as e:
+            results.append({"job_id": job_id, "error": str(e)})
+    
+    return {"results": results}
+
+# Compliance checking endpoint
+@app.get("/api/jobs/{job_id}/compliance-check")
+async def compliance_check(job_id: str):
+    with _db_lock:
+        row = _conn.execute("SELECT transcript_path FROM jobs WHERE id=?", (job_id,)).fetchone()
+    
+    if not row or not row[0]:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Read transcript
+    transcript_file = os.path.join(STORAGE_DIR, "transcripts", f"{job_id}.txt")
+    with open(transcript_file, 'r', encoding='utf-8') as f:
+        transcript = f.read()
+    
+    # Compliance patterns
+    issues = []
+    
+    # PII detection patterns
+    import re
+    
+    # Email addresses
+    emails = re.findall(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b', transcript)
+    if emails:
+        issues.append({
+            "type": "PII",
+            "severity": "high",
+            "description": f"Found {len(emails)} email address(es)",
+            "examples": emails[:3]
+        })
+    
+    # Phone numbers
+    phones = re.findall(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b', transcript)
+    if phones:
+        issues.append({
+            "type": "PII",
+            "severity": "high",
+            "description": f"Found {len(phones)} phone number(s)",
+            "examples": phones[:3]
+        })
+    
+    # SSN patterns
+    ssns = re.findall(r'\b\d{3}-\d{2}-\d{4}\b', transcript)
+    if ssns:
+        issues.append({
+            "type": "PII",
+            "severity": "critical",
+            "description": f"Found {len(ssns)} potential SSN(s)",
+            "examples": ["***-**-****"] * len(ssns[:3])
+        })
+    
+    # Legal keywords
+    legal_keywords = ['confidential', 'proprietary', 'trade secret', 'NDA', 'non-disclosure']
+    found_legal = [kw for kw in legal_keywords if kw.lower() in transcript.lower()]
+    if found_legal:
+        issues.append({
+            "type": "Legal",
+            "severity": "medium",
+            "description": "Contains legal/confidential terms",
+            "examples": found_legal
+        })
+    
+    # Financial keywords
+    financial_keywords = ['salary', 'compensation', 'budget', 'revenue', 'profit', 'loss']
+    found_financial = [kw for kw in financial_keywords if kw.lower() in transcript.lower()]
+    if found_financial:
+        issues.append({
+            "type": "Financial",
+            "severity": "medium",
+            "description": "Contains financial information",
+            "examples": found_financial
+        })
+    
+    return {
+        "job_id": job_id,
+        "issues": issues,
+        "total_issues": len(issues),
+        "status": "clean" if len(issues) == 0 else "flagged"
+    }
