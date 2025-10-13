@@ -860,6 +860,60 @@ async def bulk_export(job_ids: List[str], format: str = "pdf"):
     return {"results": results}
 
 # Compliance checking endpoint
+# Calendar integration endpoints
+@app.get("/api/calendar/upcoming")
+async def get_upcoming_meetings(max_results: int = 10):
+    try:
+        from .calendar_integration import get_calendar_service
+        cal = get_calendar_service()
+        meetings = cal.get_upcoming_meetings(max_results)
+        return {"meetings": meetings}
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Calendar error: {str(e)}")
+
+@app.get("/api/calendar/search")
+async def search_meetings(query: str, max_results: int = 10):
+    try:
+        from .calendar_integration import get_calendar_service
+        cal = get_calendar_service()
+        meetings = cal.search_meetings_by_title(query, max_results)
+        return {"meetings": meetings}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Calendar error: {str(e)}")
+
+@app.post("/api/calendar/link-meeting")
+async def link_meeting_to_job(job_id: str, calendar_event_id: str):
+    """Link a calendar event to a job"""
+    try:
+        from .calendar_integration import get_calendar_service
+        cal = get_calendar_service()
+        meeting = cal.get_meeting_by_id(calendar_event_id)
+        
+        if not meeting:
+            raise HTTPException(status_code=404, detail="Calendar event not found")
+        
+        # Store meeting metadata with job
+        with _db_lock:
+            # Add calendar_event_id column if not exists
+            try:
+                _conn.execute("ALTER TABLE jobs ADD COLUMN calendar_event_id TEXT")
+                _conn.execute("ALTER TABLE jobs ADD COLUMN meeting_metadata TEXT")
+                _conn.commit()
+            except Exception:
+                pass
+            
+            _conn.execute(
+                "UPDATE jobs SET calendar_event_id=?, meeting_metadata=? WHERE id=?",
+                (calendar_event_id, json.dumps(meeting), job_id)
+            )
+            _conn.commit()
+        
+        return {"status": "success", "meeting": meeting}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error linking meeting: {str(e)}")
+
 @app.get("/api/jobs/{job_id}/compliance-check")
 async def compliance_check(job_id: str):
     with _db_lock:
