@@ -298,7 +298,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
               onClick={() => setShowBookmarkInput(true)}
               style={{padding:'4px 12px',border:'1px solid #444',background:'#111',color:'#fff',cursor:'pointer',marginLeft:'auto'}}
             >
-              📌 Add Bookmark
+              Add Bookmark
             </button>
           </div>
           
@@ -333,13 +333,13 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
                       style={{background:'none',border:'none',color:'#4a9eff',cursor:'pointer',textAlign:'left',flex:1}}
                       className="merriweather-500"
                     >
-                      📌 {bm.label} ({bm.timestamp.toFixed(1)}s)
+                      {bm.label} ({bm.timestamp.toFixed(1)}s)
                     </button>
                     <button
                       onClick={() => deleteBookmark(bm.id)}
                       style={{padding:'2px 8px',border:'1px solid #444',background:'#a00',color:'#fff',cursor:'pointer',fontSize:'12px'}}
                     >
-                      ✕
+                      Delete
                     </button>
                   </div>
                 ))}
@@ -446,7 +446,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
       {complianceIssues && complianceIssues.issues.length > 0 && (
         <div style={{marginTop:'16px',padding:'12px',border:'2px solid #f59e0b',background:'#0a0a0a'}}>
           <h3 className="bbh-sans-bartle-regular" style={{fontSize:'18px',marginBottom:'8px',color:'#f59e0b'}}>
-            ⚠️ Compliance Issues Detected
+            WARNING: Compliance Issues Detected
           </h3>
           <div style={{display:'flex',flexDirection:'column',gap:'8px'}}>
             {complianceIssues.issues.map((issue: any, i: number) => (
@@ -481,7 +481,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
                 disabled={!data?.transcript_path}
                 style={{padding:'6px 12px',border:'1px solid #444',background:'#111',cursor:'pointer'}}
               >
-                ✏️ Edit Transcript
+                Edit Transcript
               </button>
             ) : (
               <>
@@ -489,7 +489,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
                   onClick={saveTranscriptEdit}
                   style={{padding:'6px 12px',border:'1px solid #444',background:'#0a0',color:'#fff',cursor:'pointer'}}
                 >
-                  💾 Save & Regenerate Summary
+                  Save & Regenerate Summary
                 </button>
                 <button
                   onClick={() => setIsEditing(false)}

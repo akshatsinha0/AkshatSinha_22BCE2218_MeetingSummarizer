@@ -215,7 +215,7 @@ export default function Home() {
             style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
             title="Toggle theme (Ctrl+T)"
           >
-            {theme === 'dark' ? '☀️' : '🌙'}
+            {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
           <select
             value={fontSize}
@@ -232,28 +232,28 @@ export default function Home() {
             style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
             title="Keyboard shortcuts (Ctrl+K)"
           >
-            ⌨️
+            Shortcuts
           </button>
           <a
             href="/live"
             style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
             title="Live transcription (Ctrl+L)"
           >
-            🎤 Live
+            Live
           </a>
           <a
             href="/calendar"
             style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
             title="Calendar integration"
           >
-            📅 Calendar
+            Calendar
           </a>
           <a
             href="/settings"
             style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
             title="Settings"
           >
-            ⚙️
+            Settings
           </a>
         </div>
       </div>

@@ -93,7 +93,7 @@ export default function CalendarIntegration() {
               cursor: loading ? 'wait' : 'pointer'
             }}
           >
-            {loading ? 'Loading...' : '📅 Load Upcoming Meetings'}
+            {loading ? 'Loading...' : 'Load Upcoming Meetings'}
           </button>
         </div>
 
@@ -123,7 +123,7 @@ export default function CalendarIntegration() {
               cursor: loading || !searchQuery.trim() ? 'not-allowed' : 'pointer'
             }}
           >
-            🔍 Search
+            Search
           </button>
         </div>
       </div>
@@ -170,19 +170,19 @@ export default function CalendarIntegration() {
                     </h3>
                     
                     <div className="merriweather-500" style={{ fontSize: '14px', color: '#aaa', marginBottom: '4px' }}>
-                      📅 {formatDateTime(meeting.start)}
+                      {formatDateTime(meeting.start)}
                       {meeting.end && ` - ${formatDateTime(meeting.end)}`}
                     </div>
 
                     {meeting.location && (
                       <div className="merriweather-500" style={{ fontSize: '14px', color: '#aaa', marginBottom: '4px' }}>
-                        📍 {meeting.location}
+                        Location: {meeting.location}
                       </div>
                     )}
 
                     {meeting.attendees && meeting.attendees.length > 0 && (
                       <div className="merriweather-500" style={{ fontSize: '14px', color: '#aaa', marginBottom: '4px' }}>
-                        👥 {meeting.attendees.length} attendee(s): {meeting.attendees.slice(0, 3).map((a: any) => a.name || a.email).join(', ')}
+                        {meeting.attendees.length} attendee(s): {meeting.attendees.slice(0, 3).map((a: any) => a.name || a.email).join(', ')}
                         {meeting.attendees.length > 3 && ` +${meeting.attendees.length - 3} more`}
                       </div>
                     )}
@@ -214,7 +214,7 @@ export default function CalendarIntegration() {
                             display: 'inline-block'
                           }}
                         >
-                          🎥 Join Meeting
+                          Join Meeting
                         </a>
                       </div>
                     )}
@@ -232,7 +232,7 @@ export default function CalendarIntegration() {
                         fontSize: '13px'
                       }}
                     >
-                      🔗 Link to Job
+                      Link to Job
                     </button>
                   </div>
                 </div>

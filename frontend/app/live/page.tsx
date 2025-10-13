@@ -137,7 +137,7 @@ export default function LiveTranscription() {
                 fontSize: '16px'
               }}
             >
-              🎤 Start Recording
+              Start Recording
             </button>
           ) : (
             <button
@@ -151,7 +151,7 @@ export default function LiveTranscription() {
                 fontSize: '16px'
               }}
             >
-              ⏹ Stop Recording
+              Stop Recording
             </button>
           )}
           

@@ -249,7 +249,7 @@ export default function Settings() {
               fontSize: '16px'
             }}
           >
-            💾 Save Settings
+            Save Settings
           </button>
 
           <button
@@ -263,7 +263,7 @@ export default function Settings() {
               fontSize: '16px'
             }}
           >
-            🔄 Reset to Defaults
+            Reset to Defaults
           </button>
         </div>
       </div>
