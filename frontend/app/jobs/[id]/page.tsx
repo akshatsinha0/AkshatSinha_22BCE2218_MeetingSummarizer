@@ -487,16 +487,16 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
               <>
                 <button
                   onClick={saveTranscriptEdit}
-                  style={{padding:'6px 12px',border:'1px solid #444',background:'#0a0',color:'#fff',cursor:'pointer'}}
+                  style={{padding:'6px 12px',border:'1px solid #444',background:'#fff',color:'#000',cursor:'pointer'}}
                 >
                   Save & Regenerate Summary
                 </button>
-                <button
+                <span
                   onClick={() => setIsEditing(false)}
-                  style={{padding:'6px 12px',border:'1px solid #444',background:'#a00',color:'#fff',cursor:'pointer'}}
+                  style={{color:'#f00',cursor:'pointer',fontSize:'14px',fontWeight:'bold'}}
                 >
-                  Cancel
-                </button>
+                  ✕ Cancel
+                </span>
               </>
             )}
           </div>

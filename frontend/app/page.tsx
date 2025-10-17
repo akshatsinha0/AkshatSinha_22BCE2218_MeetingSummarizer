@@ -212,15 +212,15 @@ export default function Home() {
         <div style={{display:'flex',gap:'12px'}}>
           <button
             onClick={toggleTheme}
-            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer',transform:'skewX(-10deg)'}}
             title="Toggle theme (Ctrl+T)"
           >
-            {theme === 'dark' ? 'Light' : 'Dark'}
+            <span style={{display:'inline-block',transform:'skewX(10deg)'}}>{theme === 'dark' ? 'Light' : 'Dark'}</span>
           </button>
           <select
             value={fontSize}
             onChange={e => changeFontSize(e.target.value as 'normal'|'large'|'xlarge')}
-            style={{padding:'8px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
+            style={{padding:'8px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer',transform:'skewX(-10deg)'}}
             title="Font size"
           >
             <option value="normal">A</option>
@@ -229,31 +229,31 @@ export default function Home() {
           </select>
           <button
             onClick={() => setShowShortcuts(true)}
-            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer'}}
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,cursor:'pointer',transform:'skewX(-10deg)'}}
             title="Keyboard shortcuts (Ctrl+K)"
           >
-            Shortcuts
+            <span style={{display:'inline-block',transform:'skewX(10deg)'}}>Shortcuts</span>
           </button>
           <a
             href="/live"
-            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block',transform:'skewX(-10deg)'}}
             title="Live transcription (Ctrl+L)"
           >
-            Live
+            <span style={{display:'inline-block',transform:'skewX(10deg)'}}>Live</span>
           </a>
           <a
             href="/calendar"
-            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block',transform:'skewX(-10deg)'}}
             title="Calendar integration"
           >
-            Calendar
+            <span style={{display:'inline-block',transform:'skewX(10deg)'}}>Calendar</span>
           </a>
           <a
             href="/settings"
-            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block'}}
+            style={{padding:'8px 16px',border:`1px solid ${colors.border}`,background:colors.button,color:colors.text,textDecoration:'none',display:'inline-block',transform:'skewX(-10deg)'}}
             title="Settings"
           >
-            Settings
+            <span style={{display:'inline-block',transform:'skewX(10deg)'}}>Settings</span>
           </a>
         </div>
       </div>
