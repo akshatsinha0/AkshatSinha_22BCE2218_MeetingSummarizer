@@ -257,7 +257,7 @@ export default function Settings() {
             style={{
               padding: '12px 24px',
               border: `1px solid ${colors.border}`,
-              background: '#a00',
+              background: 'rgb(191,30,45)',
               color: '#fff',
               cursor: 'pointer',
               fontSize: '16px'

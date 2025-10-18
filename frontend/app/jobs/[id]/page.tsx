@@ -254,7 +254,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
             <rect width="100%" height="4" fill="url(#colorGrad)" opacity="url(#opacityGrad)" style={{mask:'linear-gradient(90deg, transparent, black 20%, black 80%, transparent)'}} />
           </svg>
         )}
-        {err && <pre style={{color:'tomato'}}>{err}</pre>}
+        {err && <pre style={{color:'rgb(191,30,45)'}}>{err}</pre>}
         <div className="merriweather-500" style={{marginTop:'8px'}}>Status: {data?.status} {data?.stage?`(${data.stage})`:''} {data?.progress?` ${(data.progress*100).toFixed(0)}%`:''}</div>
         </div>
         <a href="/" style={{padding:'8px 16px',border:'1px solid #444',background:'#111',color:'#fff',textDecoration:'none',display:'inline-block',marginLeft:'16px'}}>
@@ -337,7 +337,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
                     </button>
                     <button
                       onClick={() => deleteBookmark(bm.id)}
-                      style={{padding:'2px 8px',border:'1px solid #444',background:'#a00',color:'#fff',cursor:'pointer',fontSize:'12px'}}
+                      style={{padding:'2px 8px',border:'1px solid #444',background:'rgb(191,30,45)',color:'#fff',cursor:'pointer',fontSize:'12px'}}
                     >
                       Delete
                     </button>
@@ -493,7 +493,7 @@ export default function JobView({ params }: { params: Promise<{ id: string }> })
                 </button>
                 <span
                   onClick={() => setIsEditing(false)}
-                  style={{color:'#f00',cursor:'pointer',fontSize:'14px',fontWeight:'bold'}}
+                  style={{color:'rgb(191,30,45)',cursor:'pointer',fontSize:'14px',fontWeight:'bold'}}
                 >
                   ✕ Cancel
                 </span>

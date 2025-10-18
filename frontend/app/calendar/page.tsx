@@ -129,8 +129,8 @@ export default function CalendarIntegration() {
       </div>
 
       {error && (
-        <div style={{ padding: '12px', border: '2px solid #a00', background: '#0a0a0a', marginBottom: '16px' }}>
-          <p className="merriweather-500" style={{ color: '#f88' }}>
+        <div style={{ padding: '12px', border: '2px solid rgb(191,30,45)', background: '#0a0a0a', marginBottom: '16px' }}>
+          <p className="merriweather-500" style={{ color: 'rgb(255,150,150)' }}>
             <strong>Error:</strong> {error}
           </p>
           <p className="merriweather-500" style={{ color: '#ccc', fontSize: '14px', marginTop: '8px' }}>
