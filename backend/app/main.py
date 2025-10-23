@@ -264,10 +264,27 @@ def _transcribe_cloud(path:str):
             data=r.json();
             text=" ".join(alt.get('transcript','') for alt in data.get('results',{}).get('channels',[{}])[0].get('alternatives',[]))
             return text
+        elif provider=="google":
+            try:
+                from google.cloud import speech_v1p1beta1 as speech
+                # GOOGLE_APPLICATION_CREDENTIALS should point to service account json
+                client=speech.SpeechClient()
+                audio_cfg=speech.RecognitionConfig(
+                    encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+                    sample_rate_hertz=16000,
+                    language_code=os.getenv("GOOGLE_SPEECH_LANG","en-US"),
+                    enable_automatic_punctuation=True,
+                )
+                audio_in=speech.RecognitionAudio(content=audio)
+                resp=client.recognize(config=audio_cfg,audio=audio_in)
+                _budget_add(duration)
+                parts=[r.alternatives[0].transcript for r in resp.results if r.alternatives]
+                return " ".join(parts)
+            except Exception:
+                return None
     except Exception:
         return None
     return None
-
 # Summarization via Ollama HTTP API
 
 def _summarize(transcript:str,*,model:Optional[str]=None,prompt_override:Optional[str]=None)->SummaryOut:

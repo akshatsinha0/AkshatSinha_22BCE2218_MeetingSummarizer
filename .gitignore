@@ -6,3 +6,9 @@ storage/
 frontend/.next/
 node_modules/
 .vscode/
+
+# Submission package files
+create_submission_package.ps1
+MeetingSummarizer_Submission_Temp/
+*_CODE.zip
+AkshatSinha_22BCE2218_MeetingSummarizer.zip
